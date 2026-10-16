@@ -8,12 +8,12 @@ test('validated identity uses numeric stable ID, independent of login', () => {
   assert.equal(d.people['github-1'].name, 'Uno'); validateNetwork(d);
 });
 test('two knowers produce one person and two relationships', () => {
-  const d = fixture(), found = findPeople(d, '1', { scope: 'mine' });
+  const d = fixture(), found = findPeople(d, '1', { filters: { knower: '1' } });
   assert.equal(found.length, 1); assert.equal(found[0].relationships.length, 2);
 });
-test('I miei uses relationship, not original author', () => {
-  const d = fixture(); assert.equal(findPeople(d, '2', { scope: 'mine' })[0].createdBy, '1');
-  d.relationships['contact:2'] = null; assert.equal(findPeople(d, '2', { scope: 'mine' }).length, 0);
+test('knower filter uses the relationship author, not the original contact creator', () => {
+  const d = fixture(); assert.equal(findPeople(d, '2', { filters: { knower: '2' } })[0].createdBy, '1');
+  d.relationships['contact:2'] = null; assert.equal(findPeople(d, '2', { filters: { knower: '2' } }).length, 0);
 });
 test('search combines accent insensitive terms, notes and context', () => {
   const d = fixture(); d.relationships['contact:1'].note = 'Esperienza nella sanità';

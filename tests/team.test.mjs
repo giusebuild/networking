@@ -4,6 +4,31 @@ import { clone, findPeople, keyFor, removeFromNetwork, validateNetwork, viewPers
 import { NetworkSync } from '../src/sync.js';
 import { fixture } from './fixture.mjs';
 
+test('the default network includes contacts known only by another teammate', () => {
+  const data = fixture();
+  data.relationships['contact:1'] = null;
+  const people = findPeople(data, '1');
+  assert.ok(people.some(p => p.id === 'contact'));
+  assert.ok(people.some(p => p.id === 'github-2'));
+  assert.equal(people.filter(p => p.id === 'contact').length, 1);
+});
+
+test('knower filtering uses stable member IDs and combines with the other search filters', () => {
+  const data = fixture();
+  data.members['1'].name = data.members['2'].name = 'Stesso nome';
+  data.relationships['contact:1'] = null;
+  assert.equal(findPeople(data, '1', { filters: { knower: '1' } }).length, 0);
+  assert.equal(findPeople(data, '1', { search: 'ricerca', filters: { knower: '2', skills: 'UX', collaboration: 'Aperto' } })[0].id, 'contact');
+  assert.equal(findPeople(data, '1', { filters: { knower: '2', skills: 'Vendite' } }).length, 0);
+});
+
+test('a shared person keeps both paths to their skills when one knower is selected', () => {
+  const data = fixture();
+  const result = findPeople(data, '1', { filters: { knower: '2' } });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].relationships.length, 2);
+});
+
 test('removing a shared contact clears only my relationship and contribution', () => {
   const data = fixture(), original = clone(data);
   removeFromNetwork(data, 'contact', '1');
@@ -13,8 +38,8 @@ test('removing a shared contact clears only my relationship and contribution', (
   assert.deepEqual(data.relationships['contact:2'], original.relationships['contact:2']);
   assert.deepEqual(data.contributions['contact:2'], original.contributions['contact:2']);
   assert.deepEqual(data.people.contact, original.people.contact);
-  assert.equal(findPeople(data, '1', { scope: 'mine' }).length, 0);
-  assert.equal(findPeople(data, '2', { scope: 'mine' }).length, 1);
+  assert.equal(findPeople(data, '1', { filters: { knower: '1' } }).length, 0);
+  assert.equal(findPeople(data, '2', { filters: { knower: '2' } }).length, 1);
 });
 
 test('removing an exclusively owned contact deletes its complete record', () => {

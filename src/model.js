@@ -155,12 +155,16 @@ export function viewPerson(data, person) {
     ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(offering.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
   };
 }
-export function findPeople(data, userId, { search = '', scope = 'all', filters = {} } = {}) {
+export function findPeople(data, userId, { search = '', filters = {} } = {}) {
   const words = norm(search).trim().split(/\s+/).filter(Boolean);
   const own = data.members[userId]?.personId;
   return live(data.people).filter(p => p.id !== own).map(p => viewPerson(data, p)).filter(p =>
-    (scope === 'all' || p.relationships.some(r => r.authorId === userId)) &&
-    Object.entries(filters).every(([k, v]) => !v || (k === 'collaboration' ? (p.self ? [p.self] : p.contributions).some(c => c.collaboration === v) : p[k]?.some(value => norm(value) === norm(v)))) &&
+    Object.entries(filters).every(([k, v]) => {
+      if (!v) return true;
+      if (k === 'knower') return p.relationships.some(r => r.authorId === v);
+      if (k === 'collaboration') return p.offering.some(c => c.collaboration === v);
+      return p[k]?.some(value => norm(value) === norm(v));
+    }) &&
     words.every(w => norm([p.name, p.role, p.linkedin || '', ...p.skills, ...p.markets, ...p.interests,
       ...p.offering.map(c => c.help), ...p.relationships.flatMap(r => [data.members[r.authorId]?.name, r.context, r.since, r.level, r.note])].join(' ')).includes(w))
   ).sort((a, b) => a.name.localeCompare(b.name, 'it'));

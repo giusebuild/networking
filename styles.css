@@ -307,3 +307,15 @@
 #rete-tag .rs-copy-link button{white-space:nowrap}
 #rete-tag a:focus-visible{outline:2px solid var(--rs-accent);outline-offset:4px;border-radius:2px}
 @media(max-width:480px){#rete-tag .rs-auth h1{font-size:36px}#rete-tag .rs-access-roles button{padding-left:10px;padding-right:10px}#rete-tag .rs-copy-link{flex-wrap:wrap}#rete-tag .rs-copy-link input{font-size:16px}#rete-tag .rs-copy-link button{width:100%}}
+
+/* A single shared network: the route to a person is part of the result. */
+#rete-tag .rs-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#rete-tag .rs-quick-start{display:block;background:transparent;border:0;padding:0;margin:0 0 18px}
+#rete-tag .rs-quick-start .rs-btn{border-color:var(--rs-line);font-size:12px;padding:8px 12px}
+#rete-tag .rs-relation-basics{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px;align-items:start}
+#rete-tag .rs-context-input{display:grid;gap:10px}
+#rete-tag .rs-intro-action{margin-top:14px;font-size:12px;max-width:100%;white-space:normal}
+#rete-tag .rs-intro-message{min-height:200px;line-height:1.75}
+#rete-tag .rs-help-copy{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media(max-width:900px){#rete-tag .rs-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){#rete-tag .rs-filter-grid,#rete-tag .rs-relation-basics{grid-template-columns:minmax(0,1fr)}#rete-tag .rs-intro-message{font-size:16px}}

@@ -6,9 +6,15 @@
 
 Una pagina, da telefono o computer. Cerca per contributo, competenza, settore, interesse o contesto. Nessuna sezione progetti: prima rendiamo leggibile la rete.
 
+## Criterio di prodotto
+
+Il valore è usare le relazioni esistenti per trovare le persone con cui costruire collaborazioni e servizi. La schermata principale risponde a tre domande: **chi coinvolgere, per cosa, tramite chi**.
+
+La rete è unica e comprende tutti i contatti del team. La provenienza si legge nelle schede e si usa come filtro quando serve. Il team si gestisce dal menu; i profili si aggiornano dall’avatar. Ogni nuova funzione deve aiutare a trovare una persona adatta o a fare il primo passo per coinvolgerla. La compilazione deve partire da poche informazioni utili e mostrare gli altri campi solo quando servono.
+
 ## La beta: solo GitHub
 
-Due repository, zero backend e nessun servizio da attivare con una carta: `networking` contiene l’app pubblica, `networking-data` contiene l’archivio privato. È una beta per un **team fidato**: tutti i collaboratori del repository dati possono leggere l’intero archivio, incluse le note. Le viste dell’app non creano permessi diversi.
+Due repository, zero backend e nessun servizio da attivare con una carta: `networking` contiene l’app pubblica, `networking-data` contiene l’archivio privato. È una beta per un **team fidato**: tutti i collaboratori del repository dati possono leggere l’intero archivio, incluse le note. I filtri dell’app non creano permessi diversi.
 
 Il primo accesso richiede un account GitHub personale e un token. La guida **Primo accesso?** distingue chi è invitato dal proprietario; il link `https://giusebuild.github.io/networking/#join` la apre direttamente. Ricordando l’accesso con una password locale, non devi incollare il token a ogni riapertura sullo stesso dispositivo. Un token scaduto va comunque aggiornato.
 
@@ -16,9 +22,10 @@ Questa versione serve a validare la mappatura con poche persone. Inviti con solo
 
 ## Come si usa
 
-- **La mia rete**, la vista iniziale, mostra le persone che conosci tu. **Team** include anche i contatti degli altri e i loro profili.
+- **Rete** mostra insieme i contatti di tutti e gli altri partecipanti. La ricerca funziona sull’intera rete, senza scegliere prima una vista. **Chi lo conosce**, nei filtri, permette di selezionare te o un collega.
 - **Aggiungi** cerca prima le schede esistenti. Se trovi la stessa persona, aggiungi la tua relazione con **Lo conosco anch’io**. Gli omonimi restano separati.
-- **Rimuovi dalla mia rete** elimina la tua relazione, le tue note e il tuo contributo dopo conferma. Conserva i contributi degli altri. Se hai inserito il contatto e rimani l’unico autore, rimuove anche la scheda. I profili dei partecipanti restano nel team. Non c’è un comando normale per eliminare le informazioni degli altri.
+- **Chiedi una presentazione**, nella scheda di un contatto conosciuto da un collega, prepara un messaggio modificabile da copiare e inviare nei vostri canali. Il messaggio chiede di verificare l’interesse della persona prima di presentarvi. Non viene inviato automaticamente e non crea richieste o stati da gestire nell’app.
+- **Rimuovi il tuo collegamento** elimina la tua relazione, le tue note e il tuo contributo dopo conferma. Conserva i contributi degli altri. Se hai inserito il contatto e rimani l’unico autore, il comando è **Elimina contatto** e rimuove anche la scheda. I profili dei partecipanti restano nel team. Non c’è un comando normale per eliminare le informazioni degli altri.
 - Ogni relazione ha **contesto, da quando, rapporto, ultimo contatto e nota**. Se conoscete entrambi una persona, compare una sola scheda con due relazioni.
 - Nel tuo profilo rispondi a **Posso aiutare con…**. Per un contatto: **Può aiutare con…**. Capacità, esperienza, consigli e collegamenti restano associati al loro autore.
 - **Competenze**, **Settori** e **Interessi** restano distinti. I tag si aggiungono toccando i suggerimenti oppure cercando e premendo **+** o Invio. Il testo della presentazione aiuta a proporli. Le collaborazioni riportano chi le ha segnalate. Competenze, descrizione e disponibilità dichiarate da un membro hanno precedenza per ricerca e filtri; le osservazioni precedenti restano consultabili nella scheda del team.
@@ -26,7 +33,7 @@ Questa versione serve a validare la mappatura con poche persone. Inviti con solo
 
 ## Meno campi, una bozza per iniziare
 
-Dal tuo avatar apri direttamente il profilo modificabile. Un nuovo partecipante lo trova già aperto al primo ingresso, con il nome preso dal proprio account: può correggerlo e aggiungere una frase, oppure chiudere e iniziare a mappare. La presentazione breve (il vecchio campo `role`), LinkedIn, settori, interessi e disponibilità sono nei dettagli facoltativi. Le relazioni usano scelte rapide; date e note restano disponibili quando servono.
+Dal tuo avatar apri direttamente il profilo modificabile. Un nuovo partecipante lo trova già aperto al primo ingresso, con il nome preso dal proprio account: può correggerlo e aggiungere una frase, oppure chiudere e iniziare a mappare. La presentazione breve (il vecchio campo `role`), LinkedIn, settori, interessi e disponibilità sono nei dettagli facoltativi. Per la relazione, **come vi conoscete, da quando e quanto vi conoscete** si compilano insieme. Ultimo contatto e note restano nei dettagli. Le schede mostrano solo le informazioni presenti, evitando righe vuote da completare.
 
 **Incolla testo** prepara nel browser una bozza da una presentazione, dal testo di un profilo o dai tuoi appunti. Riconosce sezioni esplicite e alcuni termini professionali; propone tag distinguendo gli interessi dalle competenze. È una preparazione assistita tramite regole locali, non un modello AI o una verifica delle capacità. Rivedi la bozza, correggila e premi **Salva**. Puoi annullare l’applicazione della bozza prima di salvarla. Nessuna data di conoscenza, livello del rapporto o disponibilità viene inventata.
 

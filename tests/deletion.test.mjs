@@ -106,5 +106,5 @@ test('deletion survives a SHA race when another author adds a relationship', asy
 test('removing only my relationship keeps the shared person and the other knower', () => {
   const data = fixture(); data.relationships['contact:1'] = null; validateNetwork(data);
   assert.ok(data.people.contact); assert.ok(data.relationships['contact:2']); assert.ok(data.contributions['contact:1']);
-  assert.equal(findPeople(data, '1', { scope: 'mine' }).length, 0); assert.equal(findPeople(data, '2', { scope: 'mine' }).length, 1);
+  assert.equal(findPeople(data, '1', { filters: { knower: '1' } }).length, 0); assert.equal(findPeople(data, '2', { filters: { knower: '2' } }).length, 1);
 });

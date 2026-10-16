@@ -13,7 +13,8 @@ const q = s => root.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initials = v => v.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 let user, api, sync, vault, demo = false, selected = null, mode = null, formBase, editingId = null;
-let search = '', scope = 'mine', filters = { skills: '', markets: '', interests: '', collaboration: '' };
+const emptyFilters = () => ({ skills: '', markets: '', interests: '', collaboration: '', knower: '' });
+let search = '', filters = emptyFilters();
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
 let autoTimer, verified = false, draftUndo = null, importedSuggestions = {}, joinGuideShown = false;
 const tagEditors = Object.fromEntries([['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']].map(([key, label]) => [key, new TagEditor(q('#rs-' + key + '-editor'), key, label)]));
@@ -23,7 +24,8 @@ const nameOf = id => data().members[id]?.name || 'Partecipante';
 const ownPersonId = () => data().members[user.id].personId;
 const ownContribution = p => p.contributions.find(c => c.authorId === user.id);
 const ownRelationship = p => p.relationships.find(r => r.authorId === user.id);
-const offer = p => p.self || ownContribution(p) || p.contributions[0];
+const offer = p => p.self || [ownContribution(p), ...p.contributions].find(c => c?.help) || ownContribution(p) || p.contributions[0];
+const sharedPerson = p => !!p.memberId || [...p.relationships, ...p.contributions].some(r => r.authorId !== user.id) || p.createdBy !== user.id;
 const date = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v;
 const owner = () => !demo && user?.login.toLowerCase() === CONFIG.owner.toLowerCase();
 const showDialog = id => { const d = q(id); if (!d.open) d.showModal(); };
@@ -120,14 +122,30 @@ async function copyTeamLink() {
   try { await navigator.clipboard.writeText(input.value); q('#team-copy-status').textContent = 'Link copiato. Mandalo dopo l’invito su GitHub.'; }
   catch { input.focus(); input.select(); q('#team-copy-status').textContent = 'Copia il link selezionato.'; }
 }
+function openIntroduction(authorId) {
+  const p = person();
+  if (!p || ownRelationship(p) || p.memberId || authorId === user.id || !p.relationships.some(r => r.authorId === authorId)) return;
+  const referent = nameOf(authorId), topic = filters.skills || filters.markets;
+  q('#intro-title').textContent = `Chiedi a ${referent}`;
+  q('#intro-message').value = `Ciao ${referent}, mi piacerebbe confrontarmi con ${p.name} per una possibile collaborazione${topic ? ` su ${topic}` : ''}. Puoi chiedere se c’è interesse e, con il suo ok, metterci in contatto?`;
+  q('#intro-status').textContent = '';
+  showDialog('#intro-dialog');
+}
+async function copyIntroduction() {
+  const input = q('#intro-message');
+  if (!input.value.trim()) { input.focus(); return; }
+  try { await navigator.clipboard.writeText(input.value); q('#intro-status').textContent = 'Messaggio copiato. Invialo nel canale che usate.'; }
+  catch { input.focus(); input.select(); q('#intro-status').textContent = 'Copia il messaggio selezionato.'; }
+}
 function resetUI() {
-  selected = null; mode = null; formBase = null; editingId = null; search = ''; scope = 'mine';
+  selected = null; mode = null; formBase = null; editingId = null; search = '';
   pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null;
-  filters = { skills: '', markets: '', interests: '', collaboration: '' };
+  filters = emptyFilters();
   q('#rs-search').value = '';
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters']) q(selector).replaceChildren();
-  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption']) q(selector).textContent = '';
-  for (const key of ['skills', 'markets', 'interests']) q('#rs-filter-' + key).innerHTML = '<option value="">Qualsiasi</option>';
+  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status']) q(selector).textContent = '';
+  q('#intro-message').value = '';
+  for (const key of ['skills', 'markets', 'interests', 'knower']) q('#rs-filter-' + key).innerHTML = '<option value="">Tutti</option>';
   for (const editor of Object.values(tagEditors)) editor.set();
   for (const selector of ['#rs-form', '#draft-form', '#token-form', '#remember-form']) q(selector).reset();
   q('#rs-count').textContent = '0'; q('#rs-form').hidden = true;
@@ -153,48 +171,69 @@ function requestLeave(forget = false) {
 }
 function row(p) {
   const r = ownRelationship(p) || p.relationships[0], o = offer(p);
-  const knowers = p.relationships.map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' e ');
-  const summary = r ? [r.context, r.since ? `Dal ${r.since}` : '', r.level].filter(Boolean).join(' · ') : p.memberId ? 'Nel team' : '';
-  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-identity"><span class="rs-avatar">${esc(initials(p.name))}</span><span><span class="rs-person-name">${esc(p.name)}${p.memberId ? '<span class="rs-member">Membro</span>' : ''}</span><span class="rs-role">${esc(p.role)}</span></span></span><span class="rs-help">${esc(o?.help || 'Contributo da indicare')}<span class="rs-row-tags">${p.skills.slice(0, 3).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</span></span><span class="rs-relation-cell"><span class="rs-relation-main">${esc(knowers || '—')}</span><span class="rs-relation-sub">${esc(summary)}</span></span>${icon('chevron-right')}</button>`;
+  const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
+  const summary = r ? [r.context, r.since ? `Dal ${r.since}` : '', r.level].filter(Boolean).join(' · ') : '';
+  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-identity"><span class="rs-avatar">${esc(initials(p.name))}</span><span><span class="rs-person-name">${esc(p.name)}${p.memberId ? '<span class="rs-member">Team</span>' : ''}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span></span><span class="rs-help"><span class="rs-help-copy">${esc(o?.help || (p.skills.length ? '' : 'Da completare'))}</span><span class="rs-row-tags">${p.skills.slice(0, 3).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</span></span><span class="rs-relation-cell"><span class="rs-relation-main">${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span>${summary ? `<span class="rs-relation-sub">${esc(summary)}</span>` : ''}</span>${icon('chevron-right')}</button>`;
 }
 function detail(p) {
   if (!p) return '';
   const own = p.memberId === user.id, o = offer(p), mine = ownRelationship(p);
-  let html = `<div class="rs-detail"><div class="rs-detail-top"><span class="rs-avatar">${esc(initials(p.name))}</span><div class="rs-detail-buttons"><button type="button" class="rs-icon-btn" data-action="edit" aria-label="${own ? 'Modifica il tuo profilo' : p.memberId ? 'Modifica il tuo contributo' : 'Modifica contatto'}">${icon('pencil')}</button><button type="button" class="rs-icon-btn" data-action="close" aria-label="Chiudi scheda">${icon('x')}</button></div></div><h2>${esc(p.name)}</h2><p class="rs-role">${esc(p.role)}</p>${own ? '<span class="rs-self">Il tuo profilo</span>' : p.memberId ? '<span class="rs-self">Membro del gruppo</span>' : ''}<section class="rs-offer"><h3>${p.memberId ? 'Puoi contattarmi per' : 'Da coinvolgere per'}</h3><p>${esc(o?.help || 'Da indicare')}</p>${o ? `<span class="rs-source">${icon(o.authorId === p.memberId ? 'user-round' : 'pencil-line')}${o.authorId === p.memberId ? 'Scritto' : 'Aggiunto'} da ${esc(nameOf(o.authorId))}</span>` : ''}`;
+  let html = `<div class="rs-detail"><div class="rs-detail-top"><span class="rs-avatar">${esc(initials(p.name))}</span><div class="rs-detail-buttons"><button type="button" class="rs-icon-btn" data-action="edit" aria-label="${own ? 'Modifica il tuo profilo' : p.memberId ? 'Modifica il tuo contributo' : 'Modifica contatto'}">${icon('pencil')}</button><button type="button" class="rs-icon-btn" data-action="close" aria-label="Chiudi scheda">${icon('x')}</button></div></div><h2>${esc(p.name)}</h2>${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}${own ? '<span class="rs-self">Il tuo profilo</span>' : p.memberId ? '<span class="rs-self">Nel team</span>' : ''}`;
   const others = p.contributions.filter(c => c !== o && c.help);
-  if (others.length) html += `<details class="rs-observation"><summary>Altri contributi · ${others.length}</summary>${others.map(c => `<p>${esc(c.help)}</p><span class="rs-source">Aggiunto da ${esc(nameOf(c.authorId))}</span>`).join('')}</details>`;
-  html += '</section><section class="rs-tags-section" aria-label="Tag della persona">';
-  for (const [key, label] of [['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag" title="${esc(p.contributions.filter(c => c[key].some(x => norm(x) === norm(t))).map(c => nameOf(c.authorId)).join(', '))}">${esc(t)}</span>`).join('')}</div></div>`;
-  const statuses = p.self ? [p.self] : p.contributions;
-  html += `<div class="rs-collaboration"><div><span class="rs-tag-label">Collaborazioni</span>${statuses.length ? statuses.map(c => `<strong>${esc(c.collaboration === 'Aperto' ? 'Disponibile' : c.collaboration === 'Non disponibile' ? 'Non ora' : c.authorId === p.memberId ? 'Non indicata' : 'Da verificare')}</strong><span class="rs-source">${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${esc(nameOf(c.authorId))}</span>`).join('') : '<strong>Da chiedere</strong>'}</div></div></section>`;
+  if (o?.help || others.length) {
+    html += '<section class="rs-offer">';
+    if (o?.help) html += `<h3>${own ? 'Posso aiutare con' : 'Può aiutare con'}</h3><p>${esc(o.help)}</p><span class="rs-source">${icon(o.authorId === p.memberId ? 'user-round' : 'pencil-line')}${o.authorId === p.memberId ? 'Scritto' : 'Aggiunto'} da ${esc(nameOf(o.authorId))}</span>`;
+    if (others.length) html += `<details class="rs-observation"><summary>Altri contributi · ${others.length}</summary>${others.map(c => `<p>${esc(c.help)}</p><span class="rs-source">Aggiunto da ${esc(nameOf(c.authorId))}</span>`).join('')}</details>`;
+    html += '</section>';
+  }
+  html += '<section class="rs-tags-section" aria-label="Tag della persona">';
+  for (const [key, label] of [['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']]) {
+    if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag" title="${esc(p.offering.filter(c => c[key].some(x => norm(x) === norm(t))).map(c => nameOf(c.authorId)).join(', '))}">${esc(t)}</span>`).join('')}</div></div>`;
+  }
+  const statuses = p.offering.filter(c => c.collaboration !== 'Da chiedere');
+  if (statuses.length) html += `<div class="rs-collaboration"><div><span class="rs-tag-label">Collaborazioni</span>${statuses.map(c => `<strong>${esc(c.collaboration === 'Aperto' ? 'Disponibile' : 'Non ora')}</strong><span class="rs-source">${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${esc(nameOf(c.authorId))}</span>`).join('')}</div></div>`;
+  html += '</section>';
   if (!own) {
-    html += `<section class="rs-relations"><h3 class="rs-section-heading">Relazioni · ${p.relationships.length}</h3>`;
-    for (const r of p.relationships) html += `<section class="rs-relation" aria-label="Relazione con ${esc(nameOf(r.authorId))}"><div class="rs-rel-head"><strong>${icon('link')}${esc(r.authorId === user.id ? 'Tu' : nameOf(r.authorId))}</strong><span class="rs-closeness">${esc(r.level || 'Rapporto da indicare')}</span></div><p class="rs-context">${esc(r.context || 'Contesto da indicare')}</p><div class="rs-rel-dates"><span>${r.since ? `Dal ${esc(r.since)}` : 'Da quando: da indicare'}</span><span aria-hidden="true">·</span><span>Ultimo contatto ${esc(date(r.last) || 'da indicare')}</span></div>${r.note ? `<details class="rs-note"><summary>Nota</summary><p>${esc(r.note)}</p></details>` : ''}${r.authorId === user.id ? '<button class="rs-text-btn" data-action="relation">Modifica relazione</button>' : ''}</section>`;
+    html += '<section class="rs-relations">';
+    if (p.relationships.length) html += '<h3 class="rs-section-heading">Chi lo conosce</h3>';
+    for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
+      const dates = [r.since ? `Dal ${esc(r.since)}` : '', r.last ? `Ultimo contatto ${esc(date(r.last))}` : ''].filter(Boolean).join(' · ');
+      html += `<section class="rs-relation" aria-label="Relazione con ${esc(nameOf(r.authorId))}"><div class="rs-rel-head"><strong>${icon('link')}${esc(r.authorId === user.id ? 'Tu' : nameOf(r.authorId))}</strong>${r.level ? `<span class="rs-closeness">${esc(r.level)}</span>` : ''}</div>${r.context ? `<p class="rs-context">${esc(r.context)}</p>` : ''}${dates ? `<div class="rs-rel-dates">${dates}</div>` : ''}${r.note ? `<details class="rs-note"><summary>Nota</summary><p>${esc(r.note)}</p></details>` : ''}`;
+      if (r.authorId === user.id) html += '<button type="button" class="rs-text-btn" data-action="relation">Modifica relazione</button>';
+      else if (!mine && !p.memberId) html += `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('link')}</button>`;
+      html += '</section>';
+    }
     if (!mine) html += `<button type="button" class="rs-text-btn" data-action="relation">${icon('plus')}Lo conosco anch’io</button>`;
     html += '</section>';
   }
   if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">${icon('link')}Profilo LinkedIn ↗</a>`;
-  if (!own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length))) html += '<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">Rimuovi dalla mia rete</button></div>';
+  if (!own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length))) html += `<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div>`;
   return html + '</div>';
 }
 function render() {
   if (!sync || !user) return;
-  const found = findPeople(data(), user.id, { search, scope, filters });
+  const found = findPeople(data(), user.id, { search, filters });
   if (selected && !data().people[selected]) selected = null;
   root.dataset.open = String(!!selected);
-  q('#rs-people').innerHTML = found.length ? found.map(row).join('') : `<div class="rs-empty">${search || Object.values(filters).some(Boolean) ? 'Nessun risultato' : scope === 'mine' ? 'La tua rete parte da una persona.' : 'La vostra rete parte da una persona.'}<button type="button" class="rs-text-btn" data-action="${search || Object.values(filters).some(Boolean) ? 'clear' : 'new'}">${search || Object.values(filters).some(Boolean) ? 'Azzera filtri' : 'Aggiungi un contatto'}</button></div>`;
+  const filtered = search || Object.values(filters).some(Boolean);
+  q('#rs-people').innerHTML = found.length ? found.map(row).join('') : `<div class="rs-empty">${filtered ? 'Nessun risultato' : 'La rete parte da chi conoscete.'}<button type="button" class="rs-text-btn" data-action="${filtered ? 'clear' : 'new'}">${filtered ? 'Azzera filtri' : 'Aggiungi una persona'}</button></div>`;
   q('#rs-count').textContent = String(found.length); q('#rs-clear-search').hidden = !search;
   q('#rs-detail').innerHTML = detail(person());
   const active = Object.entries(filters).filter(([, v]) => v);
   q('#rs-filter-count').hidden = !active.length; q('#rs-filter-count').textContent = String(active.length);
   q('#rs-active-filters').hidden = !active.length;
-  q('#rs-active-filters').innerHTML = active.map(([key, value]) => `<button type="button" class="rs-active-tag" data-remove-filter="${key}" aria-label="Rimuovi filtro ${esc(value)}">${esc(value)}${icon('x')}</button>`).join('');
-  for (const b of root.querySelectorAll('[data-scope]')) b.setAttribute('aria-pressed', String(b.dataset.scope === scope));
+  q('#rs-active-filters').innerHTML = active.map(([key, value]) => {
+    const label = key === 'knower' ? `Conosciuto da ${value === user.id ? 'te' : nameOf(value)}` : value;
+    return `<button type="button" class="rs-active-tag" data-remove-filter="${key}" aria-label="Rimuovi filtro ${esc(label)}">${esc(label)}${icon('x')}</button>`;
+  }).join('');
   for (const key of ['skills', 'markets', 'interests']) {
     const values = [...new Map(live(data().people).flatMap(p => viewPerson(data(), p)[key]).concat(filters[key] || []).map(value => [norm(value), value])).values()].sort((a, b) => a.localeCompare(b, 'it'));
     q('#rs-filter-' + key).innerHTML = '<option value="">Qualsiasi</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     q('#rs-filter-' + key).value = filters[key];
   }
+  const members = live(data().members).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id) || a.name.localeCompare(b.name, 'it'));
+  q('#rs-filter-knower').innerHTML = '<option value="">Tutti</option>' + members.map(m => `<option value="${esc(m.id)}">${esc(m.id === user.id ? 'Io' : m.name)}</option>`).join('');
+  q('#rs-filter-knower').value = filters.knower;
   q('#rs-filter-collaboration').value = filters.collaboration;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id].name);
 }
@@ -226,9 +265,10 @@ function openForm(kind) {
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || (kind === 'edit' && !ownRelationship(p));
   q('#rs-help-label').textContent = own ? 'Posso aiutare con…' : 'Può aiutare con…';
-  q('#rs-help-hint').textContent = own ? 'Problemi che sai risolvere, esperienza da condividere, contatti che puoi aprire.' : 'Esperienza, idee, contatti: cosa potrebbe portare?';
+  q('#rs-help-hint').textContent = own ? 'Esperienza, servizi o contatti che offri.' : 'Esperienza, servizi o contatti utili.';
   f.personHelp.placeholder = own ? 'Es. Trasformare un’idea in un servizio, valutare una soluzione, aprire una conversazione…' : 'Es. Dare forma a un brand, trovare partner, confrontarsi su un settore…';
-  q('#rs-form-title').textContent = own ? 'Cosa porti nella rete?' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'La sua scheda';
+  q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
+  q('#rs-form-eyebrow').hidden = !relationOnly;
   q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
   q('#rs-form-person').hidden = false;
   q('#rs-form-person').textContent = own ? 'Aiuta gli altri a capire quando coinvolgerti.' : relationOnly ? 'Una persona, più collegamenti. Aggiungi il tuo.' : 'Basta ciò che sai. Il resto può arrivare dopo.';
@@ -380,6 +420,7 @@ q('#conflict-form').addEventListener('submit', e => {
 q('#conflict-dialog').addEventListener('cancel', e => { e.preventDefault(); });
 q('#rs-form').addEventListener('submit', saveForm);
 q('#rs-search').addEventListener('input', e => { search = e.target.value; render(); });
+q('#intro-message').addEventListener('input', () => { q('#intro-status').textContent = ''; });
 q('#rs-name').addEventListener('input', () => { allowSameName = false; q('[data-action="different-person"]').hidden = false; showMatches(); });
 for (const field of ['personHelp', 'personRole']) q('#rs-form').elements[field].addEventListener('input', refreshSuggestions);
 q('#rs-form').elements.personLinkedin.addEventListener('input', e => { e.target.setCustomValidity(''); showMatches(); });
@@ -397,8 +438,8 @@ root.addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   try {
     if (b.dataset.removeFilter) { filters[b.dataset.removeFilter] = ''; render(); return; }
-    if (b.dataset.scope) { scope = b.dataset.scope; render(); return; }
     if (b.dataset.person) { selected = b.dataset.person; render(); q('#rs-detail button')?.focus(); return; }
+    if (b.dataset.introduction) { openIntroduction(b.dataset.introduction); return; }
     if (b.dataset.accessRole) { openAccessGuide(b.dataset.accessRole); return; }
     if (b.dataset.existing) {
       selected = b.dataset.existing; clearFilters(); closeForm(); render();
@@ -431,6 +472,7 @@ root.addEventListener('click', async e => {
     if (a === 'settings') showDialog('#settings-dialog');
     if (a === 'team') openTeam();
     if (a === 'copy-team-link') await copyTeamLink();
+    if (a === 'copy-introduction') await copyIntroduction();
     if (a === 'access-guide') openAccessGuide();
     if (a === 'access-ready') { q('#access-dialog').close(); q('#unlock-form').hidden = true; q('#login-form').hidden = false; q('#login-form').elements.token.focus(); }
     if (a === 'close-dialog') b.closest('dialog').close();
@@ -450,12 +492,12 @@ root.addEventListener('click', async e => {
     if (a === 'remove-person') {
       const p = person(); if (!p || p.memberId === user.id) return;
       const original = clone(data()), id = p.id;
-      const shared = !!p.memberId || [...p.relationships, ...p.contributions].some(r => r.authorId !== user.id) || p.createdBy !== user.id;
-      confirm(`Rimuovere ${p.name}?`, shared ? 'Rimuove la tua relazione, le tue note e il tuo contributo. La scheda del team e le informazioni degli altri restano.' : 'Rimuove la persona, la tua relazione e il tuo contributo. È un contatto inserito solo da te.', () => {
+      const shared = sharedPerson(p);
+      confirm(shared ? 'Rimuovere il tuo collegamento?' : `Eliminare ${p.name}?`, shared ? 'Rimuove la tua relazione, le tue note e il tuo contributo. La scheda del team e le informazioni degli altri restano.' : 'Rimuove la persona, la tua relazione e il tuo contributo. È un contatto inserito solo da te.', () => {
         sync.edit(d => removeFromNetwork(d, id, user.id), original);
         if (!sync.pending) { selected = null; closeForm(); render(); q('#rs-add').focus(); }
         scheduleSync();
-      }, 'Rimuovi');
+      }, shared ? 'Rimuovi' : 'Elimina');
     }
   } catch (e) { notice(e.message); }
 });
