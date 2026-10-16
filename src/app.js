@@ -1,6 +1,6 @@
 import { CONFIG } from './config.js';
 import { clone, norm, tags, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV } from './model.js';
-import { GitHub } from './github.js';
+import { GitHub } from './github.js?v=2';
 import { NetworkSync } from './sync.js';
 import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
 import { icon, hydrateIcons } from './icons.js';
@@ -345,4 +345,4 @@ window.addEventListener('beforeunload', e => { if ((sync?.dirty || sync?.pending
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && sync && !mode) synchronize(); });
 setInterval(() => { if (sync && !mode && document.visibilityState === 'visible') synchronize(); }, 45000);
 loginScreen();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});

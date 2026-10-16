@@ -11,7 +11,7 @@ export const toBase64 = text => {
 };
 export const fromBase64 = text => new TextDecoder().decode(Uint8Array.from(atob(text.replace(/\s/g, '')), c => c.charCodeAt(0)));
 export class GitHub {
-  constructor(token, config = CONFIG, transport = globalThis.fetch) {
+  constructor(token, config = CONFIG, transport = globalThis.fetch.bind(globalThis)) {
     this.token = token; this.config = config; this.transport = transport;
     this.root = `/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
   }
@@ -23,7 +23,12 @@ export class GitHub {
         signal: AbortSignal.timeout(20000),
         headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${this.token}`, 'X-GitHub-Api-Version': '2022-11-28', ...(options.body ? { 'Content-Type': 'application/json' } : {}) },
       });
-    } catch { throw new GitHubError('Connessione assente o scaduta. Le modifiche restano su questo dispositivo.', 0); }
+    } catch (error) {
+      const message = error.name === 'TimeoutError' || error.name === 'AbortError'
+        ? 'GitHub non ha risposto entro 20 secondi. Riprova.'
+        : 'Impossibile contattare GitHub. Riprova o verifica eventuali blocchi del browser.';
+      throw new GitHubError(message, 0);
+    }
     if (!response.ok) {
       const messages = {
         401: 'Accesso scaduto. Esporta le modifiche e accedi con un nuovo token.',
