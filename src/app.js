@@ -248,7 +248,7 @@ function detail(p) {
     html += '<section class="rs-connections"><h3>Chi lo conosce</h3>';
     for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
       const isMine = r.authorId === user.id;
-      const context = [r.context, r.since ? `Dal ${r.since}` : ''].filter(Boolean).join(' · ');
+      const context = [r.context, r.since && !norm(r.context).includes(norm(r.since)) ? `Dal ${r.since}` : ''].filter(Boolean).join(' · ');
       const content = `<span class="rs-connection-top"><span class="rs-connection-name">${icon('link')}${esc(isMine ? 'Tu' : nameOf(r.authorId))}</span>${r.level ? `<span class="rs-closeness">${esc(r.level)}</span>` : ''}${isMine ? icon('pencil') : ''}</span>${context ? `<span class="rs-context">${esc(context)}</span>` : isMine ? '<span class="rs-context rs-placeholder">Come vi conoscete?</span>' : ''}`;
       html += `<section class="rs-relation">${isMine ? `<button type="button" class="rs-connection-edit" data-edit-field="personContext" aria-label="Modifica relazione">${content}</button>` : `<div class="rs-connection-view">${content}</div>`}${r.last || r.note ? `<details class="rs-note"><summary>Nota${r.last ? ` · ${esc(date(r.last))}` : ''}</summary>${r.note ? `<p>${esc(r.note)}</p>` : ''}</details>` : ''}${!isMine && !mine && !p.memberId ? `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('chevron-right')}</button>` : ''}</section>`;
     }
