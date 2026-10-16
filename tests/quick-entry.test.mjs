@@ -11,6 +11,12 @@ test('one note proposes a name, useful skills and explicit acquaintance context'
   assert.equal(draft.since, '2024');
   assert.doesNotMatch(draft.help, /Conosciuta/);
 });
+test('extracting a meeting sentence leaves clean presentation text', () => {
+  const draft = quickPersonFromText('Elena Riva — comunicazione e grafica.\nConosciuta a un evento dal 2024.\nAppassionata di vela.');
+  assert.doesNotMatch(draft.help, /^\s*[.!?]\s*$/m);
+  assert.match(draft.help, /comunicazione e grafica/);
+  assert.ok(draft.interests.includes('Vela'));
+});
 test('a first name is enough to start; a profile URL never invents the person name', () => {
   assert.equal(quickPersonFromText('Sofia').name, 'Sofia');
   assert.equal(quickPersonFromText('Sofia').help, '');

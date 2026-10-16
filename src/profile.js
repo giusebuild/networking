@@ -96,7 +96,13 @@ export function quickPersonFromText(text) {
   const clauses = raw.split(/\r?\n|[.!?]\s+|\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
   const relationships = clauses.filter(x => /^(?:conosciut[oaie]|incontrat[oaie]|ci siamo conosciuti|ci siamo incontrati)\s+(?:a\b|al\b|alla\b|allo\b|all['’]|in\b|durante\b|tramite\b)/i.test(x));
   let professional = raw;
-  for (const clause of relationships) professional = professional.replace(clause, '');
+  for (const clause of relationships) {
+    const start = professional.indexOf(clause);
+    if (start < 0) continue;
+    const end = start + clause.length;
+    const punctuation = /[.!?]/.test(professional[end] || '') ? 1 : 0;
+    professional = professional.slice(0, start) + professional.slice(end + punctuation);
+  }
   professional = professional.replace(/\s+[—–-]\s*(?=$|\n)/g, '').trim();
   const draft = draftFromText(professional);
   if (!draft.name && /^[\p{Lu}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,4}$/u.test(raw) && raw.length <= 80) {
