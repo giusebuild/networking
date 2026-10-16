@@ -88,3 +88,21 @@ export function draftFromText(text, linkedin = '') {
   draft.name = draft.name.slice(0, 160); draft.role = draft.role.slice(0, 160); draft.help = draft.help.slice(0, 1500);
   return { ...draft, suggestions, shortened: raw.length > 1500 && draft.help.length === 1500 };
 }
+
+// Quick notes are supplied by the person mapping the contact. Only explicit
+// acquaintance phrases become relationship context; dates are never completed.
+export function quickPersonFromText(text) {
+  const raw = String(text || '').trim().slice(0, 15000);
+  const clauses = raw.split(/\r?\n|[.!?]\s+|\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+  const relationships = clauses.filter(x => /^(?:conosciut[oaie]|incontrat[oaie]|ci siamo conosciuti|ci siamo incontrati)\s+(?:a\b|al\b|alla\b|allo\b|all['’]|in\b|durante\b|tramite\b)/i.test(x));
+  let professional = raw;
+  for (const clause of relationships) professional = professional.replace(clause, '');
+  professional = professional.replace(/\s+[—–-]\s*(?=$|\n)/g, '').trim();
+  const draft = draftFromText(professional);
+  if (!draft.name && /^[\p{Lu}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,4}$/u.test(raw) && raw.length <= 80) {
+    draft.name = raw; draft.help = ''; draft.role = '';
+  }
+  const context = relationships.join(' · ').replace(/^(?:conosciut[oaie]|incontrat[oaie]|ci siamo conosciuti|ci siamo incontrati)\s+/i, '').slice(0, 150);
+  const since = context.match(/\b(?:dal|da)\s+(\d{4}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?!\d)/i)?.[1] || '';
+  return { ...draft, context, since };
+}

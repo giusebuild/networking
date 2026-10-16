@@ -31,6 +31,12 @@ Questa versione serve a validare la mappatura con poche persone. Inviti con solo
 - **Competenze**, **Settori** e **Interessi** restano distinti. I tag si aggiungono toccando i suggerimenti oppure cercando e premendo **+** o Invio. Il testo della presentazione aiuta a proporli. Le collaborazioni riportano chi le ha segnalate. Competenze, descrizione e disponibilità dichiarate da un membro hanno precedenza per ricerca e filtri; le osservazioni precedenti restano consultabili nella scheda del team.
 - Ogni partecipante modifica il proprio contributo e la propria relazione. Nome e ruolo dei contatti sono condivisi; un profilo membro si presenta in prima persona.
 
+## Meno tap, da telefono
+
+**Aggiungi** apre un inserimento rapido: scrivi o incolla nome e appunti, per esempio `Sofia Verdi — grafica e comunicazione`. La scheda si prepara mentre scrivi. Prima di aggiungerla puoi correggere il nome e togliere i tag proposti con un tocco. Le frasi esplicite come `Conosciuta a un evento dal 2024` vengono separate dall’offerta professionale e riportate nella relazione; una data incompleta rimane incompleta. Disponibilità e intensità della relazione si indicano a mano. **Compila i campi** apre il modulo completo. I suggerimenti non identificano automaticamente una persona già presente: la scelta resta esplicita.
+
+Nella rete, le competenze più ricorrenti funzionano anche come filtri a un tocco. Nella scheda, nome, contributo e propria relazione aprono direttamente il campo da modificare. Disponibilità e collegamenti restano in evidenza; settori, interessi, riferimenti e altre osservazioni si espandono quando servono. La rimozione è nel menu della scheda. Su telefono la scheda usa lo schermo intero, senza ripetere la barra principale sopra i dati.
+
 ## Meno campi, una bozza per iniziare
 
 Dal tuo avatar apri direttamente il profilo modificabile. Un nuovo partecipante lo trova già aperto al primo ingresso, con il nome preso dal proprio account: può correggerlo e aggiungere una frase, oppure chiudere e iniziare a mappare. La presentazione breve (il vecchio campo `role`), LinkedIn, settori, interessi e disponibilità sono nei dettagli facoltativi. Per la relazione, **come vi conoscete, da quando e quanto vi conoscete** si compilano insieme. Ultimo contatto e note restano nei dettagli. Le schede mostrano solo le informazioni presenti, evitando righe vuote da completare.

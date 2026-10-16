@@ -5,7 +5,7 @@ import { NetworkSync } from './sync.js';
 import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
 import { icon, hydrateIcons } from './icons.js';
 import { demoNetwork } from './demo.js';
-import { normalizeLinkedIn, draftFromText, suggestedTags } from './profile.js';
+import { normalizeLinkedIn, draftFromText, suggestedTags, quickPersonFromText } from './profile.js';
 import { TagEditor } from './tag-editor.js';
 
 const root = document.getElementById('rete-tag');
@@ -17,6 +17,7 @@ const emptyFilters = () => ({ skills: '', markets: '', interests: '', collaborat
 let search = '', filters = emptyFilters();
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
 let autoTimer, verified = false, draftUndo = null, importedSuggestions = {}, joinGuideShown = false;
+let quickDraft = null, quickNameEdited = false, quickHomonym = false;
 const tagEditors = Object.fromEntries([['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']].map(([key, label]) => [key, new TagEditor(q('#rs-' + key + '-editor'), key, label)]));
 const data = () => sync.local;
 const person = () => data().people[selected] ? viewPerson(data(), data().people[selected]) : null;
@@ -137,17 +138,74 @@ async function copyIntroduction() {
   try { await navigator.clipboard.writeText(input.value); q('#intro-status').textContent = 'Messaggio copiato. Invialo nel canale che usate.'; }
   catch { input.focus(); input.select(); q('#intro-status').textContent = 'Copia il messaggio selezionato.'; }
 }
+function openQuickAdd() {
+  if (sync.pending) { showConflicts(); return; }
+  q('#quick-form').reset(); quickDraft = null; quickNameEdited = false; quickHomonym = false;
+  q('#quick-preview').hidden = true; q('#quick-homonym').hidden = true; q('#quick-error').textContent = ''; q('#quick-matches').replaceChildren();
+  showDialog('#quick-dialog'); q('#quick-text').focus();
+}
+function quickMatches() {
+  const name = norm(q('#quick-name').value.trim());
+  if (!quickDraft) return [];
+  return live(data().people).filter(p => (name.length >= 2 && norm(p.name).includes(name)) || (quickDraft.linkedin && p.linkedin && normalizeLinkedIn(p.linkedin) === quickDraft.linkedin)).slice(0, 4);
+}
+function renderQuickPreview() {
+  if (!quickDraft) return;
+  q('#quick-preview').hidden = false;
+  q('#quick-summary').textContent = quickDraft.help || quickDraft.role;
+  q('#quick-context').textContent = quickDraft.context;
+  q('#quick-context').hidden = !quickDraft.context;
+  q('#quick-tags').innerHTML = ['skills', 'markets', 'interests'].filter(k => quickDraft[k].length).map(k => `<div class="rs-quick-tag-group"><span>${{ skills: 'Competenze', markets: 'Settori', interests: 'Interessi' }[k]}</span><div>${quickDraft[k].map((t, i) => `<button type="button" class="rs-selected-chip" data-quick-tag="${k}" data-quick-index="${i}" aria-label="Rimuovi ${esc(t)}">${esc(t)}<span aria-hidden="true">×</span></button>`).join('')}</div></div>`).join('');
+  q('#quick-matches').innerHTML = quickHomonym ? '' : quickMatches().map(p => `<button type="button" class="rs-match" data-quick-existing="${esc(p.id)}"><span><strong>${esc(p.name)}</strong><small>Già nella rete</small></span>${icon('chevron-right')}</button>`).join('');
+}
+function updateQuickDraft() {
+  try {
+    quickDraft = quickPersonFromText(q('#quick-text').value);
+    if (!quickNameEdited) q('#quick-name').value = quickDraft.name;
+    quickHomonym = false; q('#quick-homonym').hidden = true; q('#quick-error').textContent = '';
+    if (!q('#quick-text').value.trim()) { q('#quick-preview').hidden = true; return; }
+    renderQuickPreview();
+  } catch (error) { quickDraft = null; q('#quick-error').textContent = error.message; }
+}
+function applyQuickDraft() {
+  const f = q('#rs-form').elements;
+  for (const [key, value] of Object.entries({ personName: q('#quick-name').value.trim(), personRole: quickDraft.role, personHelp: quickDraft.help, personLinkedin: quickDraft.linkedin, personContext: quickDraft.context, personSince: quickDraft.since })) f[key].value = value;
+  for (const [key, editor] of Object.entries(tagEditors)) editor.set(quickDraft[key], tagPool(key));
+  refreshSuggestions(); showMatches();
+}
+function saveQuickPerson(e) {
+  e.preventDefault();
+  try {
+    if (!quickDraft || !q('#quick-text').value.trim()) { q('#quick-text').focus(); q('#quick-error').textContent = 'Scrivi il nome o qualche appunto.'; return; }
+    const name = q('#quick-name').value.trim();
+    if (!name) { q('#quick-name').focus(); q('#quick-error').textContent = 'Aggiungi il nome.'; return; }
+    const sameProfile = quickDraft.linkedin && live(data().people).some(p => p.linkedin && normalizeLinkedIn(p.linkedin) === quickDraft.linkedin);
+    if (sameProfile || (!quickHomonym && live(data().people).some(p => norm(p.name) === norm(name)))) {
+      q('#quick-error').textContent = 'È la persona già nella rete? Apri la scheda qui sotto.';
+      q('#quick-homonym').hidden = !!sameProfile; renderQuickPreview(); return;
+    }
+    const id = crypto.randomUUID(), key = keyFor(id, user.id);
+    sync.edit(d => {
+      d.people[id] = { id, name, role: quickDraft.role, memberId: null, createdBy: user.id, ...(quickDraft.linkedin ? { linkedin: quickDraft.linkedin } : {}) };
+      d.contributions[key] = { id: key, personId: id, authorId: user.id, help: quickDraft.help, skills: [...quickDraft.skills], markets: [...quickDraft.markets], interests: [...quickDraft.interests], collaboration: 'Da chiedere' };
+      d.relationships[key] = { id: key, personId: id, authorId: user.id, context: quickDraft.context, since: quickDraft.since, level: '', last: '', note: '' };
+    });
+    q('#quick-dialog').close(); selected = id; clearFilters(); closeForm(); render(); scheduleSync();
+    q('#rs-detail button')?.focus({ preventScroll: true });
+  } catch (error) { q('#quick-error').textContent = error.message; }
+}
 function resetUI() {
   selected = null; mode = null; formBase = null; editingId = null; search = '';
   pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null;
+  quickDraft = null; quickNameEdited = false; quickHomonym = false;
   filters = emptyFilters();
   q('#rs-search').value = '';
-  for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters']) q(selector).replaceChildren();
-  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status']) q(selector).textContent = '';
+  for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-tags', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
+  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error']) q(selector).textContent = '';
   q('#intro-message').value = '';
   for (const key of ['skills', 'markets', 'interests', 'knower']) q('#rs-filter-' + key).innerHTML = '<option value="">Tutti</option>';
   for (const editor of Object.values(tagEditors)) editor.set();
-  for (const selector of ['#rs-form', '#draft-form', '#token-form', '#remember-form']) q(selector).reset();
+  for (const selector of ['#rs-form', '#draft-form', '#token-form', '#remember-form', '#quick-form']) q(selector).reset();
   q('#rs-count').textContent = '0'; q('#rs-form').hidden = true;
   q('#rs-header').hidden = true; q('#rs-app').hidden = true; q('#rs-auth').hidden = false;
   q('#rs-add').hidden = false; q('#rs-notice').textContent = ''; q('#rs-status').textContent = '';
@@ -170,45 +228,52 @@ function requestLeave(forget = false) {
   else action();
 }
 function row(p) {
-  const r = ownRelationship(p) || p.relationships[0], o = offer(p);
+  const o = offer(p), mine = ownRelationship(p);
   const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
-  const summary = r ? [r.context, r.since ? `Dal ${r.since}` : '', r.level].filter(Boolean).join(' · ') : '';
-  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-identity"><span class="rs-avatar">${esc(initials(p.name))}</span><span><span class="rs-person-name">${esc(p.name)}${p.memberId ? '<span class="rs-member">Team</span>' : ''}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span></span><span class="rs-help"><span class="rs-help-copy">${esc(o?.help || (p.skills.length ? '' : 'Da completare'))}</span><span class="rs-row-tags">${p.skills.slice(0, 3).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</span></span><span class="rs-relation-cell"><span class="rs-relation-main">${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span>${summary ? `<span class="rs-relation-sub">${esc(summary)}</span>` : ''}</span>${icon('chevron-right')}</button>`;
+  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span><span class="rs-help-copy">${esc(o?.help || (p.skills.length ? '' : 'Aggiungi cosa può offrire'))}</span>${p.skills.length ? `<span class="rs-row-tags">${p.skills.slice(0, 3).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}${p.skills.length > 3 ? `<span class="rs-tag rs-tag-count">+${p.skills.length - 3}</span>` : ''}</span>` : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>`;
 }
 function detail(p) {
   if (!p) return '';
-  const own = p.memberId === user.id, o = offer(p), mine = ownRelationship(p);
-  let html = `<div class="rs-detail"><div class="rs-detail-top"><span class="rs-avatar">${esc(initials(p.name))}</span><div class="rs-detail-buttons"><button type="button" class="rs-icon-btn" data-action="edit" aria-label="${own ? 'Modifica il tuo profilo' : p.memberId ? 'Modifica il tuo contributo' : 'Modifica contatto'}">${icon('pencil')}</button><button type="button" class="rs-icon-btn" data-action="close" aria-label="Chiudi scheda">${icon('x')}</button></div></div><h2>${esc(p.name)}</h2>${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}${own ? '<span class="rs-self">Il tuo profilo</span>' : p.memberId ? '<span class="rs-self">Nel team</span>' : ''}`;
-  const others = p.contributions.filter(c => c !== o && c.help);
-  if (o?.help || others.length) {
-    html += '<section class="rs-offer">';
-    if (o?.help) html += `<h3>${own ? 'Posso aiutare con' : 'Può aiutare con'}</h3><p>${esc(o.help)}</p><span class="rs-source">${icon(o.authorId === p.memberId ? 'user-round' : 'pencil-line')}${o.authorId === p.memberId ? 'Scritto' : 'Aggiunto'} da ${esc(nameOf(o.authorId))}</span>`;
-    if (others.length) html += `<details class="rs-observation"><summary>Altri contributi · ${others.length}</summary>${others.map(c => `<p>${esc(c.help)}</p><span class="rs-source">Aggiunto da ${esc(nameOf(c.authorId))}</span>`).join('')}</details>`;
-    html += '</section>';
-  }
-  html += '<section class="rs-tags-section" aria-label="Tag della persona">';
-  for (const [key, label] of [['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']]) {
-    if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag" title="${esc(p.offering.filter(c => c[key].some(x => norm(x) === norm(t))).map(c => nameOf(c.authorId)).join(', '))}">${esc(t)}</span>`).join('')}</div></div>`;
-  }
+  const own = p.memberId === user.id, editable = !p.memberId || own, o = offer(p), mine = ownRelationship(p);
+  const removable = !own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length));
   const statuses = p.offering.filter(c => c.collaboration !== 'Da chiedere');
-  if (statuses.length) html += `<div class="rs-collaboration"><div><span class="rs-tag-label">Collaborazioni</span>${statuses.map(c => `<strong>${esc(c.collaboration === 'Aperto' ? 'Disponibile' : 'Non ora')}</strong><span class="rs-source">${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${esc(nameOf(c.authorId))}</span>`).join('')}</div></div>`;
-  html += '</section>';
+  const statusValues = [...new Set(statuses.map(c => c.collaboration))];
+  const availability = statusValues.length > 1 ? 'Da verificare' : statusValues[0] === 'Aperto' ? 'Disponibile' : statusValues.length ? 'Non ora' : '';
+  const attribution = statuses.map(c => `${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${nameOf(c.authorId)}`).join(' · ');
+  let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
+  html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}${availability ? `<span class="rs-availability" title="${esc(attribution)}" aria-label="${esc(availability + '. ' + attribution)}"><span class="rs-status-dot"></span>${availability}</span>` : ''}</div></div></div>`;
+  html += `<section class="rs-person-offer">${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || (own ? 'Cosa puoi offrire alla rete?' : 'Per cosa coinvolgere questa persona?'))}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(o.authorId === user.id ? 'Il tuo contributo' : (o.authorId === p.memberId ? 'Scritto da ' : 'Aggiunto da ') + nameOf(o.authorId))}</span>` : ''}</section>`;
+  html += `<section class="rs-person-skills" aria-label="Competenze"><div class="rs-tag-list">${p.skills.map(t => `<span class="rs-tag rs-skill-tag">${esc(t)}</span>`).join('')}${editable ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica competenze">${icon('plus')}${p.skills.length ? '' : 'Competenze'}</button>` : ''}</div></section>`;
   if (!own) {
-    html += '<section class="rs-relations">';
-    if (p.relationships.length) html += '<h3 class="rs-section-heading">Chi lo conosce</h3>';
+    html += '<section class="rs-connections"><h3>Chi lo conosce</h3>';
     for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
-      const dates = [r.since ? `Dal ${esc(r.since)}` : '', r.last ? `Ultimo contatto ${esc(date(r.last))}` : ''].filter(Boolean).join(' · ');
-      html += `<section class="rs-relation" aria-label="Relazione con ${esc(nameOf(r.authorId))}"><div class="rs-rel-head"><strong>${icon('link')}${esc(r.authorId === user.id ? 'Tu' : nameOf(r.authorId))}</strong>${r.level ? `<span class="rs-closeness">${esc(r.level)}</span>` : ''}</div>${r.context ? `<p class="rs-context">${esc(r.context)}</p>` : ''}${dates ? `<div class="rs-rel-dates">${dates}</div>` : ''}${r.note ? `<details class="rs-note"><summary>Nota</summary><p>${esc(r.note)}</p></details>` : ''}`;
-      if (r.authorId === user.id) html += '<button type="button" class="rs-text-btn" data-action="relation">Modifica relazione</button>';
-      else if (!mine && !p.memberId) html += `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('link')}</button>`;
-      html += '</section>';
+      const isMine = r.authorId === user.id;
+      const context = [r.context, r.since ? `Dal ${r.since}` : ''].filter(Boolean).join(' · ');
+      const content = `<span class="rs-connection-top"><span class="rs-connection-name">${icon('link')}${esc(isMine ? 'Tu' : nameOf(r.authorId))}</span>${r.level ? `<span class="rs-closeness">${esc(r.level)}</span>` : ''}${isMine ? icon('pencil') : ''}</span>${context ? `<span class="rs-context">${esc(context)}</span>` : isMine ? '<span class="rs-context rs-placeholder">Come vi conoscete?</span>' : ''}`;
+      html += `<section class="rs-relation">${isMine ? `<button type="button" class="rs-connection-edit" data-edit-field="personContext" aria-label="Modifica relazione">${content}</button>` : `<div class="rs-connection-view">${content}</div>`}${r.last || r.note ? `<details class="rs-note"><summary>Nota${r.last ? ` · ${esc(date(r.last))}` : ''}</summary>${r.note ? `<p>${esc(r.note)}</p>` : ''}</details>` : ''}${!isMine && !mine && !p.memberId ? `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('chevron-right')}</button>` : ''}</section>`;
     }
     if (!mine) html += `<button type="button" class="rs-text-btn" data-action="relation">${icon('plus')}Lo conosco anch’io</button>`;
     html += '</section>';
   }
-  if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">${icon('link')}Profilo LinkedIn ↗</a>`;
-  if (!own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length))) html += `<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div>`;
-  return html + '</div>';
+  const others = p.contributions.filter(c => c !== o && c.help);
+  if (p.markets.length || p.interests.length || others.length || p.linkedin || availability) {
+    html += '<details class="rs-person-more"><summary>Altri dettagli' + icon('chevron-right') + '</summary><div class="rs-more-content">';
+    if (availability) html += `<div class="rs-tag-group"><span class="rs-tag-label">Collaborazioni · ${esc(availability)}</span><span class="rs-source">${esc(attribution)}</span></div>`;
+    for (const [key, label] of [['markets', 'Settori'], ['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</div></div>`;
+    if (others.length) html += `<div class="rs-observation">${others.map(c => `<p>${esc(c.help)}</p><span class="rs-source">${esc(nameOf(c.authorId))}</span>`).join('')}</div>`;
+    if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">Profilo LinkedIn ↗</a>`;
+    html += '</div></details>';
+  }
+  return html + '</article>';
+}
+function editAt(field) {
+  const relation = ['personContext', 'personSince', 'personLevel', 'personNote', 'personLast'].includes(field);
+  openForm(selected === ownPersonId() ? 'profile' : relation ? 'relation' : 'edit');
+  if (!mode) return;
+  if (['personRole', 'personLinkedin', 'personCollaboration', 'markets', 'interests'].includes(field)) q('#rs-tags-editor').open = true;
+  if (field === 'personNote' || field === 'personLast') q('#rs-extra').open = true;
+  const target = tagEditors[field]?.input || q('#rs-form').elements[field];
+  target?.focus({ preventScroll: true }); target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
 }
 function render() {
   if (!sync || !user) return;
@@ -221,8 +286,8 @@ function render() {
   q('#rs-detail').innerHTML = detail(person());
   const active = Object.entries(filters).filter(([, v]) => v);
   q('#rs-filter-count').hidden = !active.length; q('#rs-filter-count').textContent = String(active.length);
-  q('#rs-active-filters').hidden = !active.length;
-  q('#rs-active-filters').innerHTML = active.map(([key, value]) => {
+  q('#rs-active-filters').hidden = !active.some(([key]) => key !== 'skills');
+  q('#rs-active-filters').innerHTML = active.filter(([key]) => key !== 'skills').map(([key, value]) => {
     const label = key === 'knower' ? `Conosciuto da ${value === user.id ? 'te' : nameOf(value)}` : value;
     return `<button type="button" class="rs-active-tag" data-remove-filter="${key}" aria-label="Rimuovi filtro ${esc(label)}">${esc(label)}${icon('x')}</button>`;
   }).join('');
@@ -234,6 +299,12 @@ function render() {
   const members = live(data().members).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id) || a.name.localeCompare(b.name, 'it'));
   q('#rs-filter-knower').innerHTML = '<option value="">Tutti</option>' + members.map(m => `<option value="${esc(m.id)}">${esc(m.id === user.id ? 'Io' : m.name)}</option>`).join('');
   q('#rs-filter-knower').value = filters.knower;
+  const counts = new Map();
+  for (const p of findPeople(data(), user.id)) for (const tag of p.skills) { const key = norm(tag); const item = counts.get(key); counts.set(key, { label: item?.label || tag, count: (item?.count || 0) + 1 }); }
+  const frequent = [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'it')).map(x => x.label);
+  const quickSkills = [...new Set([...(filters.skills ? [filters.skills] : []), ...frequent])].slice(0, 4);
+  q('#rs-quick-filters').hidden = !quickSkills.length;
+  q('#rs-quick-filters').innerHTML = quickSkills.map(tag => `<button type="button" class="rs-quick-filter" data-skill-filter="${esc(tag)}" aria-pressed="${norm(tag) === norm(filters.skills)}">${esc(tag)}${norm(tag) === norm(filters.skills) ? icon('x') : ''}</button>`).join('');
   q('#rs-filter-collaboration').value = filters.collaboration;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id].name);
 }
@@ -263,7 +334,7 @@ function openForm(kind) {
   const own = kind === 'profile', relationOnly = kind === 'relation';
   q('#rs-extra').open = false; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
-  q('#rs-form-relation').hidden = own || (kind === 'edit' && !ownRelationship(p));
+  q('#rs-form-relation').hidden = own || kind === 'edit';
   q('#rs-help-label').textContent = own ? 'Posso aiutare con…' : 'Può aiutare con…';
   q('#rs-help-hint').textContent = own ? 'Esperienza, servizi o contatti che offri.' : 'Esperienza, servizi o contatti utili.';
   f.personHelp.placeholder = own ? 'Es. Trasformare un’idea in un servizio, valutare una soluzione, aprire una conversazione…' : 'Es. Dare forma a un brand, trovare partner, confrontarsi su un settore…';
@@ -419,6 +490,9 @@ q('#conflict-form').addEventListener('submit', e => {
 });
 q('#conflict-dialog').addEventListener('cancel', e => { e.preventDefault(); });
 q('#rs-form').addEventListener('submit', saveForm);
+q('#quick-form').addEventListener('submit', saveQuickPerson);
+q('#quick-text').addEventListener('input', updateQuickDraft);
+q('#quick-name').addEventListener('input', () => { quickNameEdited = true; quickHomonym = false; q('#quick-homonym').hidden = true; renderQuickPreview(); });
 q('#rs-search').addEventListener('input', e => { search = e.target.value; render(); });
 q('#intro-message').addEventListener('input', () => { q('#intro-status').textContent = ''; });
 q('#rs-name').addEventListener('input', () => { allowSameName = false; q('[data-action="different-person"]').hidden = false; showMatches(); });
@@ -438,6 +512,14 @@ root.addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   try {
     if (b.dataset.removeFilter) { filters[b.dataset.removeFilter] = ''; render(); return; }
+    if (b.dataset.editField) { editAt(b.dataset.editField); return; }
+    if (b.dataset.quickTag) { quickDraft[b.dataset.quickTag].splice(Number(b.dataset.quickIndex), 1); renderQuickPreview(); return; }
+    if (b.dataset.quickExisting) {
+      q('#quick-dialog').close(); selected = b.dataset.quickExisting; clearFilters(); render();
+      if (selected !== ownPersonId() && !ownRelationship(person())) { openForm('relation'); q('#rs-form').elements.personContext.value = quickDraft?.context || ''; q('#rs-form').elements.personSince.value = quickDraft?.since || ''; }
+      return;
+    }
+    if (b.dataset.skillFilter) { filters.skills = norm(filters.skills) === norm(b.dataset.skillFilter) ? '' : b.dataset.skillFilter; selected = null; render(); return; }
     if (b.dataset.person) { selected = b.dataset.person; render(); q('#rs-detail button')?.focus(); return; }
     if (b.dataset.introduction) { openIntroduction(b.dataset.introduction); return; }
     if (b.dataset.accessRole) { openAccessGuide(b.dataset.accessRole); return; }
@@ -449,7 +531,9 @@ root.addEventListener('click', async e => {
     if (b.dataset.collaboration) { q('#rs-form').elements.personCollaboration.value = b.dataset.collaboration; updateChoices(); return; }
     if (b.dataset.context) { const f = q('#rs-form').elements; f.personContext.value = b.dataset.context + ' · '; f.personContext.focus(); return; }
     const a = b.dataset.action;
-    if (a === 'new') openForm('new');
+    if (a === 'new') openQuickAdd();
+    if (a === 'quick-details') { if (!quickDraft) quickDraft = quickPersonFromText(''); q('#quick-dialog').close(); openForm('new'); applyQuickDraft(); }
+    if (a === 'quick-homonym') { quickHomonym = true; q('#quick-homonym').hidden = true; q('#quick-error').textContent = ''; renderQuickPreview(); }
     if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
     if (a === 'edit') openForm(selected === ownPersonId() ? 'profile' : 'edit');
     if (a === 'relation') openForm('relation');
