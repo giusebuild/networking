@@ -1,0 +1,132 @@
+export const TABLES = ['members', 'people', 'contributions', 'relationships'];
+export const COLLABORATION = ['Da chiedere', 'Aperto', 'Non disponibile'];
+export const LEVELS = ['', 'Appena conosciuto', 'Conoscenza occasionale', 'Buona conoscenza', 'Rapporto stretto'];
+export const clone = value => structuredClone(value);
+export const norm = value => String(value ?? '').toLocaleLowerCase('it').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const tags = text => [...new Map(String(text).split(',').map(x => x.trim()).filter(Boolean).map(x => [norm(x), x])).values()];
+export const live = table => Object.values(table).filter(Boolean);
+export const keyFor = (personId, userId) => `${personId}:${userId}`;
+export const emptyNetwork = () => ({ schemaVersion: 1, members: {}, people: {}, contributions: {}, relationships: {} });
+const dangerous = new Set(['__proto__', 'constructor', 'prototype']);
+const validKey = x => /^[a-zA-Z0-9:_-]{1,120}$/.test(x) && !dangerous.has(x);
+const plain = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+function check(ok, message) { if (!ok) throw new Error(`Archivio non valido: ${message}`); }
+const string = (x, n = 5000) => typeof x === 'string' && x.length <= n;
+const shapes = {
+  members: ['id', 'login', 'name', 'personId'],
+  people: ['id', 'name', 'role', 'memberId', 'createdBy'],
+  contributions: ['id', 'personId', 'authorId', 'help', 'skills', 'markets', 'interests', 'collaboration'],
+  relationships: ['id', 'personId', 'authorId', 'context', 'since', 'level', 'last', 'note'],
+};
+export function validateNetwork(data) {
+  check(plain(data) && data.schemaVersion === 1, 'versione sconosciuta');
+  check(Object.keys(data).length === 5 && Object.keys(data).every(k => k === 'schemaVersion' || TABLES.includes(k)), 'struttura sconosciuta');
+  for (const table of TABLES) {
+    check(plain(data[table]) && Object.keys(data[table]).length <= 15000, `tabella ${table}`);
+    for (const [key, record] of Object.entries(data[table])) {
+      check(validKey(key), 'identificatore');
+      if (record === null) continue; // Tombstones preserve deletions across devices.
+      check(plain(record) && record.id === key, `record ${table}`);
+      check(Object.keys(record).length === shapes[table].length && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
+      for (const [field, value] of Object.entries(record)) {
+        check(!dangerous.has(field), 'campo riservato');
+        if (['skills', 'markets', 'interests'].includes(field)) check(Array.isArray(value) && value.length <= 40 && value.every(v => string(v, 80) && v.trim()), 'tag');
+        else if (field === 'memberId') check(value === null || /^\d+$/.test(value), 'membro');
+        else check(string(value), `campo ${field}`);
+      }
+      if (table === 'members') check(/^\d+$/.test(key) && /^[a-zA-Z0-9-]{1,39}$/.test(record.login) && record.name.trim(), 'identità');
+      if (table === 'people') check(record.name.trim() && record.name.length <= 160, 'nome');
+      if (table === 'contributions') check(COLLABORATION.includes(record.collaboration), 'collaborazioni');
+      if (table === 'relationships') check(LEVELS.includes(record.level) && (!record.last || /^\d{4}-\d{2}-\d{2}$/.test(record.last)), 'relazione');
+    }
+  }
+  for (const p of live(data.people)) {
+    check(!!data.members[p.createdBy], 'autore persona mancante');
+    if (p.memberId) check(data.members[p.memberId]?.personId === p.id, 'profilo non collegato');
+  }
+  for (const m of live(data.members)) check(data.people[m.personId]?.memberId === m.id, 'identità non collegata');
+  for (const t of ['contributions', 'relationships']) for (const r of live(data[t])) {
+    check(!!data.people[r.personId] && !!data.members[r.authorId] && r.id === keyFor(r.personId, r.authorId), 'riferimento mancante');
+    if (t === 'relationships') check(data.people[r.personId].memberId !== r.authorId, 'relazione con sé stesso');
+  }
+  return data;
+}
+export function ensureMember(data, user) {
+  const id = String(user.id);
+  if (data.members[id]) { data.members[id].login = user.login; return data.members[id]; }
+  const personId = `github-${id}`;
+  data.members[id] = { id, login: user.login, name: user.name || user.login, personId };
+  data.people[personId] = { id: personId, name: user.name || user.login, role: '', memberId: id, createdBy: id };
+  return data.members[id];
+}
+const canonical = v => v === undefined ? 'undefined' : JSON.stringify(v, (_, x) => plain(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
+export const equal = (a, b) => canonical(a) === canonical(b);
+// Three-way merge: unrelated fields merge; true collisions require a human choice.
+export function mergeNetworks(base, local, remote) {
+  const conflicts = [];
+  function merge(b, l, r, path) {
+    if (equal(l, r) || equal(r, b)) return l === undefined ? undefined : clone(l);
+    if (equal(l, b)) return r === undefined ? undefined : clone(r);
+    if (plain(l) && plain(r) && (plain(b) || b === undefined)) {
+      const result = {};
+      for (const k of new Set([...Object.keys(b || {}), ...Object.keys(l), ...Object.keys(r)])) {
+        if (dangerous.has(k)) throw new Error('Campo riservato');
+        const v = merge(b?.[k], l[k], r[k], [...path, k]);
+        if (v !== undefined) result[k] = v;
+      }
+      return result;
+    }
+    conflicts.push({ path, base: b, local: l, remote: r });
+    return l === undefined ? undefined : clone(l);
+  }
+  return { data: merge(base, local, remote, []), conflicts };
+}
+export function resolveConflicts(merged, conflicts, choices) {
+  const data = clone(merged);
+  conflicts.forEach((c, i) => {
+    const value = choices[i] === 'remote' ? c.remote : c.local;
+    let target = data;
+    for (const k of c.path.slice(0, -1)) target = target[k];
+    if (value === undefined) delete target[c.path.at(-1)];
+    else target[c.path.at(-1)] = clone(value);
+  });
+  return validateNetwork(data);
+}
+export function viewPerson(data, person) {
+  const contributions = live(data.contributions).filter(c => c.personId === person.id);
+  const relationships = live(data.relationships).filter(r => r.personId === person.id);
+  const self = contributions.find(c => c.authorId === person.memberId);
+  return { ...person, contributions, relationships, self,
+    ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, tags(contributions.flatMap(c => c[k]).join(','))])),
+  };
+}
+export function findPeople(data, userId, { search = '', scope = 'all', filters = {} } = {}) {
+  const words = norm(search).trim().split(/\s+/).filter(Boolean);
+  const own = data.members[userId]?.personId;
+  return live(data.people).filter(p => p.id !== own).map(p => viewPerson(data, p)).filter(p =>
+    (scope === 'all' || p.relationships.some(r => r.authorId === userId)) &&
+    Object.entries(filters).every(([k, v]) => !v || (k === 'collaboration' ? (p.self ? [p.self] : p.contributions).some(c => c.collaboration === v) : p[k]?.includes(v))) &&
+    words.every(w => norm([p.name, p.role, ...p.skills, ...p.markets, ...p.interests,
+      ...p.contributions.map(c => c.help), ...p.relationships.flatMap(r => [data.members[r.authorId]?.name, r.context, r.since, r.level, r.note])].join(' ')).includes(w))
+  ).sort((a, b) => a.name.localeCompare(b.name, 'it'));
+}
+// Imports merge by stable IDs, not by names. Different values go through the same conflict UI.
+export function mergeImport(current, incoming) {
+  validateNetwork(incoming);
+  const blank = emptyNetwork();
+  return mergeNetworks(blank, current, incoming);
+}
+const csvCell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"';
+export function exportCSV(data) {
+  const rows = [['ID persona', 'Nome', 'Ruolo', 'Conosciuto da', 'Come può aiutare', 'Competenze', 'Ambiti', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note']];
+  for (const person of live(data.people)) {
+    const p = viewPerson(data, person);
+    const authors = new Set([...p.relationships.map(r => r.authorId), ...p.contributions.map(c => c.authorId)]);
+    for (const authorId of authors) {
+      const c = p.contributions.find(c => c.authorId === authorId), r = p.relationships.find(r => r.authorId === authorId);
+      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note]);
+    }
+    if (!authors.size) rows.push([p.id, p.name, p.role]);
+  }
+  return '\ufeff' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
+}
