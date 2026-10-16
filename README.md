@@ -10,6 +10,7 @@ Una pagina, da telefono o computer. Cerca per contributo, competenza, settore, i
 
 - **Tutti** mostra la rete del gruppo. **I miei** mostra le persone che conosci tu.
 - **Aggiungi** cerca prima le schede esistenti. Se trovi la stessa persona, aggiungi la tua relazione con **Lo conosco anch’io**. Gli omonimi restano separati.
+- **Elimina persona** rimuove un contatto dalla rete di tutti, incluse le relazioni e i contributi, dopo conferma. **Rimuovi dai miei** toglie soltanto la tua relazione. I profili dei partecipanti non si eliminano come contatti.
 - Ogni relazione ha **contesto, da quando, rapporto, ultimo contatto e nota**. Se conoscete entrambi una persona, compare una sola scheda con due relazioni.
 - **Come può aiutare?** raccoglie capacità, esperienza, consigli e collegamenti, con l’autore del contributo. Dal profilo personale: **Come posso aiutarti?**
 - **Competenze**, **Ambiti** e **Interessi** restano distinti. Le collaborazioni riportano chi le ha segnalate. La disponibilità dichiarata da un membro ha precedenza sulle osservazioni altrui.
@@ -57,7 +58,7 @@ Senza **Ricorda**, token e dati restano in memoria: prima di chiudere verifica *
 | Browser, se richiesto | Copia cifrata per dispositivo e utente, incluse modifiche non ancora sincronizzate. |
 | Backup scaricati | Dati in chiaro, senza credenziali: custodiscili come il file originale. |
 
-L’archivio ha quattro mappe: `members` (ID GitHub → profilo), `people` (identità), `contributions` e `relationships` (persona + autore). Gli ID delle persone non dipendono dai nomi. Una relazione rimossa conserva un tombstone `null` per non riapparire da una vecchia cache.
+L’archivio ha quattro mappe: `members` (ID GitHub → profilo), `people` (identità), `contributions` e `relationships` (persona + autore). Gli ID delle persone non dipendono dai nomi. Persone, contributi e relazioni rimossi conservano tombstone `null` per non riapparire da una vecchia cache. Se un contatto viene eliminato mentre un altro dispositivo ne modifica i dati o aggiunge una relazione, il conflitto si risolve con una sola scelta: mantenere la persona completa oppure eliminarla con tutti i riferimenti.
 
 Ogni sincronizzazione legge l’ultima versione e confronta **base, modifica locale e remoto**. Le modifiche indipendenti si uniscono. Se lo stesso campo cambia in due modi, scegli esplicitamente quale mantenere; puoi esportare entrambe le versioni prima della scelta. Una collisione SHA viene riletta e ritentata, senza sovrascrittura forzata. Un modulo aperto prima di un aggiornamento remoto passa dallo stesso confronto.
 

@@ -61,9 +61,29 @@ export function ensureMember(data, user) {
 }
 const canonical = v => v === undefined ? 'undefined' : JSON.stringify(v, (_, x) => plain(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
 export const equal = (a, b) => canonical(a) === canonical(b);
+const dependentTables = ['contributions', 'relationships'];
+const belongsToPerson = (key, personId) => key.slice(0, key.lastIndexOf(':')) === personId;
+function personBundle(data, id) {
+  if (!data.people[id]) return null;
+  return { person: clone(data.people[id]), ...Object.fromEntries(dependentTables.map(table =>
+    [table, Object.fromEntries(Object.entries(data[table]).filter(([key]) => belongsToPerson(key, id)).map(([key, value]) => [key, clone(value)]))]
+  )) };
+}
+function applyPersonBundle(data, id, bundle) {
+  data.people[id] = bundle ? clone(bundle.person) : null;
+  for (const table of dependentTables) {
+    for (const key of Object.keys(data[table])) if (belongsToPerson(key, id)) data[table][key] = null;
+    if (bundle) for (const [key, value] of Object.entries(bundle[table])) data[table][key] = clone(value);
+  }
+}
+export function deletePerson(data, id) {
+  if (data.people[id]?.memberId) throw new Error('I profili dei partecipanti non si eliminano come contatti.');
+  if (!data.people[id]) return;
+  applyPersonBundle(data, id, null);
+}
 // Three-way merge: unrelated fields merge; true collisions require a human choice.
 export function mergeNetworks(base, local, remote) {
-  const conflicts = [];
+  let conflicts = [];
   function merge(b, l, r, path) {
     if (equal(l, r) || equal(r, b)) return l === undefined ? undefined : clone(l);
     if (equal(l, b)) return r === undefined ? undefined : clone(r);
@@ -79,12 +99,31 @@ export function mergeNetworks(base, local, remote) {
     conflicts.push({ path, base: b, local: l, remote: r });
     return l === undefined ? undefined : clone(l);
   }
-  return { data: merge(base, local, remote, []), conflicts };
+  const data = merge(base, local, remote, []);
+  // Deletion is one decision for the person and every dependent record. A concurrent
+  // new relationship must not survive with a missing person, or silently disappear.
+  for (const id of new Set([...Object.keys(local.people), ...Object.keys(remote.people)])) {
+    if (base.people[id] === null) continue; // An explicit restore after a known deletion is a new edit.
+    const localDeleted = local.people[id] === null, remoteDeleted = remote.people[id] === null;
+    if (!localDeleted && !remoteDeleted) continue;
+    const other = localDeleted ? personBundle(remote, id) : personBundle(local, id);
+    const hasConflict = !!other && !equal(personBundle(base, id), other);
+    conflicts = conflicts.filter(c => !(c.path[0] === 'people' && c.path[1] === id) &&
+      !(dependentTables.includes(c.path[0]) && belongsToPerson(c.path[1] || '', id)));
+    if (hasConflict) {
+      const localValue = personBundle(local, id), remoteValue = personBundle(remote, id);
+      conflicts.push({ kind: 'person-deletion', path: ['people', id], label: other.person.name,
+        base: personBundle(base, id), local: localValue, remote: remoteValue });
+      applyPersonBundle(data, id, localValue);
+    } else applyPersonBundle(data, id, null);
+  }
+  return { data, conflicts };
 }
 export function resolveConflicts(merged, conflicts, choices) {
   const data = clone(merged);
   conflicts.forEach((c, i) => {
     const value = choices[i] === 'remote' ? c.remote : c.local;
+    if (c.kind === 'person-deletion') { applyPersonBundle(data, c.path[1], value); return; }
     let target = data;
     for (const k of c.path.slice(0, -1)) target = target[k];
     if (value === undefined) delete target[c.path.at(-1)];

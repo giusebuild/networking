@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js';
-import { clone, norm, tags, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV } from './model.js';
+import { clone, norm, tags, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, deletePerson } from './model.js?v=3';
 import { GitHub } from './github.js?v=2';
-import { NetworkSync } from './sync.js';
+import { NetworkSync } from './sync.js?v=3';
 import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
 import { icon, hydrateIcons } from './icons.js';
 import { demoNetwork } from './demo.js';
@@ -10,7 +10,7 @@ const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initials = v => v.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
-let user, api, sync, vault, demo = false, selected = null, mode = null, formBase;
+let user, api, sync, vault, demo = false, selected = null, mode = null, formBase, editingId = null;
 let search = '', scope = 'all', filters = { skills: '', markets: '', interests: '', collaboration: '' };
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
 let autoTimer, verified = false;
@@ -24,8 +24,9 @@ const offer = p => p.self || ownContribution(p) || p.contributions[0];
 const date = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v;
 const showDialog = id => { const d = q(id); if (!d.open) d.showModal(); };
 function notice(text) { q('#rs-notice').textContent = text; q('#rs-status').textContent = text; }
-function confirm(title, copy, action) {
+function confirm(title, copy, action, label = 'Conferma') {
   q('#confirm-title').textContent = title; q('#confirm-copy').textContent = copy; confirmAction = action; showDialog('#confirm-dialog');
+  const button = q('[data-action="confirm-yes"]'); button.textContent = label; button.classList.toggle('rs-destructive', label === 'Elimina');
 }
 function download(value, filename, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([value], { type }));
@@ -94,7 +95,7 @@ function loginScreen() {
   q('#auth-error').textContent = ''; hydrateIcons(root);
 }
 function resetUI() {
-  selected = null; mode = null; formBase = null; search = ''; scope = 'all';
+  selected = null; mode = null; formBase = null; editingId = null; search = ''; scope = 'all';
   filters = { skills: '', markets: '', interests: '', collaboration: '' };
   q('#rs-search').value = ''; q('#rs-people').replaceChildren(); q('#rs-detail').replaceChildren();
   q('#rs-count').textContent = '0'; q('#rs-form').reset(); q('#rs-form').hidden = true;
@@ -141,6 +142,7 @@ function detail(p) {
     else html += '<div><button type="button" class="rs-text-btn rs-danger" data-action="unlink">Rimuovi dai miei</button></div>';
     html += '</section>';
   }
+  if (!p.memberId) html += '<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="delete-person">Elimina persona</button></div>';
   return html + '</div>';
 }
 function render() {
@@ -165,7 +167,7 @@ function render() {
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id].name);
 }
 function clearFilters() { search = ''; scope = 'all'; q('#rs-search').value = ''; for (const k of Object.keys(filters)) filters[k] = ''; }
-function closeForm() { mode = null; formBase = null; q('#rs-form').hidden = true; q('#rs-add').hidden = false; root.dataset.view = 'network'; }
+function closeForm() { mode = null; formBase = null; editingId = null; q('#rs-form').hidden = true; q('#rs-add').hidden = false; root.dataset.view = 'network'; }
 function closeDetail() {
   const old = selected; selected = null; render();
   Array.from(q('#rs-people').querySelectorAll('[data-person]')).find(b => b.dataset.person === old)?.focus();
@@ -173,7 +175,7 @@ function closeDetail() {
 function openForm(kind) {
   if (sync.pending) { showConflicts(); return; }
   const form = q('#rs-form'), f = form.elements, p = kind === 'new' ? null : person();
-  mode = kind; formBase = clone(data()); form.reset(); allowSameName = false;
+  mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false;
   const own = kind === 'profile', relationOnly = kind === 'relation';
   q('#rs-extra').open = false; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-tags-editor').hidden = relationOnly;
@@ -207,7 +209,7 @@ function saveForm(e) {
     const f = e.currentTarget.elements, fresh = mode === 'new', own = mode === 'profile', relationOnly = mode === 'relation';
     const name = f.personName.value.trim();
     if (fresh && !allowSameName && live(data().people).some(p => norm(p.name) === norm(name))) { showMatches(true); f.personName.focus(); return; }
-    const id = fresh ? crypto.randomUUID() : selected;
+    const id = fresh ? crypto.randomUUID() : editingId;
     const showRelationship = !q('#rs-form-relation').hidden;
     sync.edit(d => {
       if (fresh) d.people[id] = { id, name, role: '', memberId: null, createdBy: user.id };
@@ -230,8 +232,9 @@ function showConflicts() {
   const labels = p.source === 'import' ? ['Nella rete', 'Nel file'] : p.source === 'edit' ? ['Nel modulo', 'Nella rete'] : ['Su questo dispositivo', 'Nel repository'];
   q('#conflict-items').innerHTML = p.conflicts.map((c, i) => {
     const record = p.data[c.path[0]]?.[c.path[1]], personId = record?.personId || (c.path[0] === 'people' ? c.path[1] : null);
-    const personName = p.data.people[personId]?.name || record?.name || 'Scheda';
-    return `<div class="rs-conflict"><fieldset><legend>${esc(personName)} · ${esc(fieldNames[c.path.at(-1)] || 'Scheda')}</legend>${['local', 'remote'].map((side, j) => `<label><input type="radio" name="conflict-${i}" value="${side}" required><span><small>${labels[j]}</small>${esc(conflictValue(c[side]))}</span></label>`).join('')}</fieldset></div>`;
+    const personName = c.label || p.data.people[personId]?.name || record?.name || 'Scheda';
+    const value = side => c.kind === 'person-deletion' ? (c[side] ? `Mantieni ${c[side].person.name}, con contributi e relazioni` : 'Elimina persona, contributi e relazioni') : conflictValue(c[side]);
+    return `<div class="rs-conflict"><fieldset><legend>${esc(personName)} · ${c.kind === 'person-deletion' ? 'Eliminazione e modifica' : esc(fieldNames[c.path.at(-1)] || 'Scheda')}</legend>${['local', 'remote'].map((side, j) => `<label><input type="radio" name="conflict-${i}" value="${side}" required><span><small>${labels[j]}</small>${esc(value(side))}</span></label>`).join('')}</fieldset></div>`;
   }).join('');
   for (const d of root.querySelectorAll('dialog[open]')) if (d.id !== 'conflict-dialog') d.close();
   showDialog('#conflict-dialog');
@@ -335,6 +338,15 @@ root.addEventListener('click', async e => {
     if (a === 'unlink') {
       const id = selected;
       confirm('Rimuovere dai tuoi contatti?', 'Rimuove solo la tua relazione. La persona e i contributi restano nella rete condivisa.', () => { sync.edit(d => { d.relationships[keyFor(id, user.id)] = null; }); render(); scheduleSync(); });
+    }
+    if (a === 'delete-person') {
+      const p = person(); if (!p || p.memberId) return;
+      const original = clone(data()), id = p.id;
+      confirm(`Eliminare ${p.name}?`, 'Elimina la persona dalla rete di tutti, insieme a contributi, note e relazioni.', () => {
+        sync.edit(d => deletePerson(d, id), original);
+        if (!sync.pending) { selected = null; closeForm(); render(); q('#rs-add').focus(); }
+        scheduleSync();
+      }, 'Elimina');
     }
   } catch (e) { notice(e.message); }
 });

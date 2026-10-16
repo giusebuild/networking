@@ -189,3 +189,7 @@
 @media(prefers-reduced-motion:no-preference){#rete-tag button{transition:background-color .15s}#rete-tag .rs-detail{animation:appear .16s ease-out}@keyframes appear{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}}
 @media(min-width:1000px){#rete-tag .rs-detail{position:sticky;top:88px;max-height:calc(100dvh - 110px);overflow:auto}}
 @media(max-width:480px){#rete-tag dialog{padding:19px}#rete-tag .rs-top-actions{gap:4px}#rete-tag .rs-main{padding-bottom:35px}}
+
+#rete-tag .rs-person-actions{margin-top:18px;padding-top:5px;border-top:1px solid var(--rs-line)}
+#rete-tag .rs-destructive{background:var(--rs-warn);color:var(--rs-bg);border-color:var(--rs-warn)}
+#rete-tag .rs-destructive:hover{background:var(--rs-warn);filter:brightness(.96)}

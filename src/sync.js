@@ -1,4 +1,4 @@
-import { clone, equal, mergeNetworks, resolveConflicts, validateNetwork } from './model.js';
+import { clone, equal, mergeNetworks, resolveConflicts, validateNetwork } from './model.js?v=3';
 export class NetworkSync {
   constructor(api, state, notify = () => {}) {
     this.api = api; this.base = clone(state.base); this.local = clone(state.local); this.sha = state.sha;
