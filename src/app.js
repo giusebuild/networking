@@ -1,5 +1,5 @@
 import { CONFIG } from './config.js';
-import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, deletePerson } from './model.js';
+import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, removeFromNetwork } from './model.js';
 import { GitHub } from './github.js';
 import { NetworkSync } from './sync.js';
 import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
@@ -13,9 +13,9 @@ const q = s => root.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initials = v => v.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 let user, api, sync, vault, demo = false, selected = null, mode = null, formBase, editingId = null;
-let search = '', scope = 'all', filters = { skills: '', markets: '', interests: '', collaboration: '' };
+let search = '', scope = 'mine', filters = { skills: '', markets: '', interests: '', collaboration: '' };
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
-let autoTimer, verified = false, draftUndo = null, importedSuggestions = {};
+let autoTimer, verified = false, draftUndo = null, importedSuggestions = {}, joinGuideShown = false;
 const tagEditors = Object.fromEntries([['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']].map(([key, label]) => [key, new TagEditor(q('#rs-' + key + '-editor'), key, label)]));
 const data = () => sync.local;
 const person = () => data().people[selected] ? viewPerson(data(), data().people[selected]) : null;
@@ -25,11 +25,12 @@ const ownContribution = p => p.contributions.find(c => c.authorId === user.id);
 const ownRelationship = p => p.relationships.find(r => r.authorId === user.id);
 const offer = p => p.self || ownContribution(p) || p.contributions[0];
 const date = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v;
+const owner = () => !demo && user?.login.toLowerCase() === CONFIG.owner.toLowerCase();
 const showDialog = id => { const d = q(id); if (!d.open) d.showModal(); };
 function notice(text) { q('#rs-notice').textContent = text; q('#rs-status').textContent = text; }
 function confirm(title, copy, action, label = 'Conferma') {
   q('#confirm-title').textContent = title; q('#confirm-copy').textContent = copy; confirmAction = action; showDialog('#confirm-dialog');
-  const button = q('[data-action="confirm-yes"]'); button.textContent = label; button.classList.toggle('rs-destructive', label === 'Elimina');
+  const button = q('[data-action="confirm-yes"]'); button.textContent = label; button.classList.toggle('rs-destructive', ['Elimina', 'Rimuovi'].includes(label));
 }
 function download(value, filename, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([value], { type }));
@@ -80,29 +81,56 @@ async function synchronize() {
 }
 function scheduleSync() { clearTimeout(autoTimer); if (!demo) autoTimer = setTimeout(synchronize, 600); }
 function enter(state, identity, client, localVault, isDemo = false) {
+  const firstVisit = !state.local.members[identity.id];
   user = identity; api = client; vault = localVault; demo = isDemo;
   sync = new NetworkSync(api, state, changed);
   q('#rs-auth').hidden = true; q('#rs-header').hidden = false; q('#rs-app').hidden = false;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id]?.name || user.name);
   q('#rs-account').textContent = isDemo ? 'Esempi inventati' : `@${user.login}`;
   q('#settings-identity').textContent = isDemo ? 'Demo · nessun dato reale' : `@${user.login} · Rete condivisa`;
-  q('#invite-link').hidden = isDemo || user.login.toLowerCase() !== CONFIG.owner.toLowerCase();
+  q('#invite-link').hidden = !owner();
   q('[data-action="change-token"]').hidden = isDemo;
   q('[data-action="forget"]').hidden = !localVault;
   if (!sync.pending) sync.edit(d => ensureMember(d, user));
   changed(); scheduleSync();
+  if (firstVisit && !sync.pending) { selected = ownPersonId(); render(); openForm('profile'); }
 }
 function loginScreen() {
   const accounts = listVaults();
   q('#unlock-form').hidden = !accounts.length; q('#login-form').hidden = !!accounts.length;
   q('#unlock-form').elements.account.innerHTML = accounts.map(a => `<option value="${esc(a.id)}">@${esc(a.login)}</option>`).join('');
   q('#auth-error').textContent = ''; hydrateIcons(root);
+  if (!accounts.length && !joinGuideShown && window.location?.hash === '#join') { joinGuideShown = true; openAccessGuide('guest'); }
+}
+function openAccessGuide(role = 'guest') {
+  for (const b of root.querySelectorAll('[data-access-role]')) b.setAttribute('aria-pressed', String(b.dataset.accessRole === role));
+  q('#access-guest').hidden = role !== 'guest'; q('#access-owner').hidden = role !== 'owner';
+  showDialog('#access-dialog');
+}
+function openTeam() {
+  q('#settings-dialog').close();
+  q('#team-members').innerHTML = live(data().members).map(m => `<li><span class="rs-avatar">${esc(initials(m.name))}</span><span><strong>${esc(m.name)}${m.id === user.id ? ' · Tu' : ''}</strong><small>@${esc(m.login)}</small></span></li>`).join('');
+  q('#team-invite').hidden = !owner(); q('#team-demo').hidden = !demo;
+  q('#team-copy-status').textContent = '';
+  q('#team-invite-url').value = new URL('#join', window.location.href).href;
+  showDialog('#team-dialog');
+}
+async function copyTeamLink() {
+  const input = q('#team-invite-url');
+  try { await navigator.clipboard.writeText(input.value); q('#team-copy-status').textContent = 'Link copiato. Mandalo dopo l’invito su GitHub.'; }
+  catch { input.focus(); input.select(); q('#team-copy-status').textContent = 'Copia il link selezionato.'; }
 }
 function resetUI() {
-  selected = null; mode = null; formBase = null; editingId = null; search = ''; scope = 'all';
+  selected = null; mode = null; formBase = null; editingId = null; search = ''; scope = 'mine';
+  pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null;
   filters = { skills: '', markets: '', interests: '', collaboration: '' };
-  q('#rs-search').value = ''; q('#rs-people').replaceChildren(); q('#rs-detail').replaceChildren();
-  q('#rs-count').textContent = '0'; q('#rs-form').reset(); q('#rs-form').hidden = true;
+  q('#rs-search').value = '';
+  for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters']) q(selector).replaceChildren();
+  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption']) q(selector).textContent = '';
+  for (const key of ['skills', 'markets', 'interests']) q('#rs-filter-' + key).innerHTML = '<option value="">Qualsiasi</option>';
+  for (const editor of Object.values(tagEditors)) editor.set();
+  for (const selector of ['#rs-form', '#draft-form', '#token-form', '#remember-form']) q(selector).reset();
+  q('#rs-count').textContent = '0'; q('#rs-form').hidden = true;
   q('#rs-header').hidden = true; q('#rs-app').hidden = true; q('#rs-auth').hidden = false;
   q('#rs-add').hidden = false; q('#rs-notice').textContent = ''; q('#rs-status').textContent = '';
   q('#rs-filters').hidden = true; root.dataset.view = 'network'; root.dataset.open = 'false';
@@ -126,7 +154,7 @@ function requestLeave(forget = false) {
 function row(p) {
   const r = ownRelationship(p) || p.relationships[0], o = offer(p);
   const knowers = p.relationships.map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' e ');
-  const summary = p.relationships.length > 1 ? `${p.relationships.length} relazioni` : r ? [r.context, r.since ? `Dal ${r.since}` : ''].filter(Boolean).join(' · ') : 'Relazione da aggiungere';
+  const summary = r ? [r.context, r.since ? `Dal ${r.since}` : '', r.level].filter(Boolean).join(' · ') : p.memberId ? 'Nel team' : '';
   return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-identity"><span class="rs-avatar">${esc(initials(p.name))}</span><span><span class="rs-person-name">${esc(p.name)}${p.memberId ? '<span class="rs-member">Membro</span>' : ''}</span><span class="rs-role">${esc(p.role)}</span></span></span><span class="rs-help">${esc(o?.help || 'Contributo da indicare')}<span class="rs-row-tags">${p.skills.slice(0, 3).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</span></span><span class="rs-relation-cell"><span class="rs-relation-main">${esc(knowers || '—')}</span><span class="rs-relation-sub">${esc(summary)}</span></span>${icon('chevron-right')}</button>`;
 }
 function detail(p) {
@@ -143,11 +171,10 @@ function detail(p) {
     html += `<section class="rs-relations"><h3 class="rs-section-heading">Relazioni · ${p.relationships.length}</h3>`;
     for (const r of p.relationships) html += `<section class="rs-relation" aria-label="Relazione con ${esc(nameOf(r.authorId))}"><div class="rs-rel-head"><strong>${icon('link')}${esc(r.authorId === user.id ? 'Tu' : nameOf(r.authorId))}</strong><span class="rs-closeness">${esc(r.level || 'Rapporto da indicare')}</span></div><p class="rs-context">${esc(r.context || 'Contesto da indicare')}</p><div class="rs-rel-dates"><span>${r.since ? `Dal ${esc(r.since)}` : 'Da quando: da indicare'}</span><span aria-hidden="true">·</span><span>Ultimo contatto ${esc(date(r.last) || 'da indicare')}</span></div>${r.note ? `<details class="rs-note"><summary>Nota</summary><p>${esc(r.note)}</p></details>` : ''}${r.authorId === user.id ? '<button class="rs-text-btn" data-action="relation">Modifica relazione</button>' : ''}</section>`;
     if (!mine) html += `<button type="button" class="rs-text-btn" data-action="relation">${icon('plus')}Lo conosco anch’io</button>`;
-    else html += '<div><button type="button" class="rs-text-btn rs-danger" data-action="unlink">Rimuovi dai miei</button></div>';
     html += '</section>';
   }
   if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">${icon('link')}Profilo LinkedIn ↗</a>`;
-  if (!p.memberId) html += '<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="delete-person">Elimina persona</button></div>';
+  if (!own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length))) html += '<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">Rimuovi dalla mia rete</button></div>';
   return html + '</div>';
 }
 function render() {
@@ -171,7 +198,7 @@ function render() {
   q('#rs-filter-collaboration').value = filters.collaboration;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id].name);
 }
-function clearFilters() { search = ''; scope = 'all'; q('#rs-search').value = ''; for (const k of Object.keys(filters)) filters[k] = ''; }
+function clearFilters() { search = ''; q('#rs-search').value = ''; for (const k of Object.keys(filters)) filters[k] = ''; }
 function closeForm() { mode = null; formBase = null; editingId = null; q('#rs-form').hidden = true; q('#rs-add').hidden = false; root.dataset.view = 'network'; }
 function closeDetail() {
   const old = selected; selected = null; render();
@@ -198,7 +225,7 @@ function openForm(kind) {
   q('#rs-extra').open = false; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || (kind === 'edit' && !ownRelationship(p));
-  q('#rs-help-label').textContent = own ? 'Per cosa possono contattarti?' : 'Per cosa coinvolgeresti questa persona?';
+  q('#rs-help-label').textContent = own ? 'Posso aiutare con…' : 'Può aiutare con…';
   q('#rs-help-hint').textContent = own ? 'Problemi che sai risolvere, esperienza da condividere, contatti che puoi aprire.' : 'Esperienza, idee, contatti: cosa potrebbe portare?';
   f.personHelp.placeholder = own ? 'Es. Trasformare un’idea in un servizio, valutare una soluzione, aprire una conversazione…' : 'Es. Dare forma a un brand, trovare partner, confrontarsi su un settore…';
   q('#rs-form-title').textContent = own ? 'Cosa porti nella rete?' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'La sua scheda';
@@ -208,7 +235,7 @@ function openForm(kind) {
   q('#rs-relation-caption').textContent = p ? `Come puoi mettere il gruppo in contatto con ${p.name}.` : 'Il collegamento che il gruppo può attivare.';
   q('#rs-availability-label').textContent = own ? 'Vuoi essere coinvolto in nuove collaborazioni?' : 'Disponibilità a collaborare';
   q('#rs-availability-unknown').textContent = own ? 'Non indicata' : 'Da verificare';
-  q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? 'Aggiungi relazione' : 'Salva persona') + icon('check');
+  q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? (ownRelationship(p) ? 'Salva relazione' : 'Aggiungi relazione') : 'Salva persona') + icon('check');
   f.personName.required = !relationOnly; f.personName.disabled = !own && !!p?.memberId;
   f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity('');
   q('#rs-form-source').textContent = own ? 'Il tuo profilo, visibile al gruppo.' : 'Visibile al gruppo · il tuo contributo.';
@@ -372,6 +399,7 @@ root.addEventListener('click', async e => {
     if (b.dataset.removeFilter) { filters[b.dataset.removeFilter] = ''; render(); return; }
     if (b.dataset.scope) { scope = b.dataset.scope; render(); return; }
     if (b.dataset.person) { selected = b.dataset.person; render(); q('#rs-detail button')?.focus(); return; }
+    if (b.dataset.accessRole) { openAccessGuide(b.dataset.accessRole); return; }
     if (b.dataset.existing) {
       selected = b.dataset.existing; clearFilters(); closeForm(); render();
       if (selected !== ownPersonId() && !ownRelationship(person())) openForm('relation'); else q('#rs-detail button')?.focus(); return;
@@ -401,6 +429,10 @@ root.addEventListener('click', async e => {
     }
     if (a === 'remember' && !demo && !vault) { q('#remember-form').reset(); q('#remember-error').textContent = ''; q('#settings-dialog').close(); showDialog('#remember-dialog'); }
     if (a === 'settings') showDialog('#settings-dialog');
+    if (a === 'team') openTeam();
+    if (a === 'copy-team-link') await copyTeamLink();
+    if (a === 'access-guide') openAccessGuide();
+    if (a === 'access-ready') { q('#access-dialog').close(); q('#unlock-form').hidden = true; q('#login-form').hidden = false; q('#login-form').elements.token.focus(); }
     if (a === 'close-dialog') b.closest('dialog').close();
     if (a === 'other-account') { q('#unlock-form').hidden = true; q('#login-form').hidden = false; }
     if (a === 'demo') { const d = demoNetwork(); enter({ base: d.data, local: d.data, sha: 'demo' }, d.user, null, null, true); }
@@ -415,18 +447,15 @@ root.addEventListener('click', async e => {
     if (a === 'forget') requestLeave(true);
     if (a === 'confirm-no') { confirmAction = null; q('#confirm-dialog').close(); }
     if (a === 'confirm-yes') { const action = confirmAction; confirmAction = null; q('#confirm-dialog').close(); await action?.(); }
-    if (a === 'unlink') {
-      const id = selected;
-      confirm('Rimuovere dai tuoi contatti?', 'Rimuove solo la tua relazione. La persona e i contributi restano nella rete condivisa.', () => { sync.edit(d => { d.relationships[keyFor(id, user.id)] = null; }); render(); scheduleSync(); });
-    }
-    if (a === 'delete-person') {
-      const p = person(); if (!p || p.memberId) return;
+    if (a === 'remove-person') {
+      const p = person(); if (!p || p.memberId === user.id) return;
       const original = clone(data()), id = p.id;
-      confirm(`Eliminare ${p.name}?`, 'Elimina la persona dalla rete di tutti, insieme a contributi, note e relazioni.', () => {
-        sync.edit(d => deletePerson(d, id), original);
+      const shared = !!p.memberId || [...p.relationships, ...p.contributions].some(r => r.authorId !== user.id) || p.createdBy !== user.id;
+      confirm(`Rimuovere ${p.name}?`, shared ? 'Rimuove la tua relazione, le tue note e il tuo contributo. La scheda del team e le informazioni degli altri restano.' : 'Rimuove la persona, la tua relazione e il tuo contributo. È un contatto inserito solo da te.', () => {
+        sync.edit(d => removeFromNetwork(d, id, user.id), original);
         if (!sync.pending) { selected = null; closeForm(); render(); q('#rs-add').focus(); }
         scheduleSync();
-      }, 'Elimina');
+      }, 'Rimuovi');
     }
   } catch (e) { notice(e.message); }
 });

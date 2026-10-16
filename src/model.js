@@ -85,6 +85,16 @@ export function deletePerson(data, id) {
   if (!data.people[id]) return;
   applyPersonBundle(data, id, null);
 }
+export function removeFromNetwork(data, personId, userId) {
+  const person = data.people[personId];
+  if (!person) return;
+  if (person.memberId === userId) throw new Error('Il tuo profilo resta nel team.');
+  const key = keyFor(personId, userId);
+  // Remove this author's knowledge only. Shared contacts and member profiles survive.
+  for (const table of dependentTables) if (data[table][key]) data[table][key] = null;
+  const hasOtherKnowledge = dependentTables.some(table => live(data[table]).some(r => r.personId === personId));
+  if (!person.memberId && !hasOtherKnowledge && person.createdBy === userId) deletePerson(data, personId);
+}
 // Three-way merge: unrelated fields merge; true collisions require a human choice.
 export function mergeNetworks(base, local, remote) {
   let conflicts = [];
@@ -139,8 +149,10 @@ export function viewPerson(data, person) {
   const contributions = live(data.contributions).filter(c => c.personId === person.id);
   const relationships = live(data.relationships).filter(r => r.personId === person.id);
   const self = contributions.find(c => c.authorId === person.memberId);
+  const offering = self ? [self] : contributions;
   return { ...person, contributions, relationships, self,
-    ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(contributions.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
+    offering,
+    ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(offering.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
   };
 }
 export function findPeople(data, userId, { search = '', scope = 'all', filters = {} } = {}) {
@@ -150,7 +162,7 @@ export function findPeople(data, userId, { search = '', scope = 'all', filters =
     (scope === 'all' || p.relationships.some(r => r.authorId === userId)) &&
     Object.entries(filters).every(([k, v]) => !v || (k === 'collaboration' ? (p.self ? [p.self] : p.contributions).some(c => c.collaboration === v) : p[k]?.some(value => norm(value) === norm(v)))) &&
     words.every(w => norm([p.name, p.role, p.linkedin || '', ...p.skills, ...p.markets, ...p.interests,
-      ...p.contributions.map(c => c.help), ...p.relationships.flatMap(r => [data.members[r.authorId]?.name, r.context, r.since, r.level, r.note])].join(' ')).includes(w))
+      ...p.offering.map(c => c.help), ...p.relationships.flatMap(r => [data.members[r.authorId]?.name, r.context, r.since, r.level, r.note])].join(' ')).includes(w))
   ).sort((a, b) => a.name.localeCompare(b.name, 'it'));
 }
 // Imports merge by stable IDs, not by names. Different values go through the same conflict UI.
