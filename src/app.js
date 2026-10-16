@@ -1,10 +1,12 @@
 import { CONFIG } from './config.js';
-import { clone, norm, tags, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, deletePerson } from './model.js?v=3';
-import { GitHub } from './github.js?v=2';
-import { NetworkSync } from './sync.js?v=3';
+import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, deletePerson } from './model.js';
+import { GitHub } from './github.js';
+import { NetworkSync } from './sync.js';
 import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
 import { icon, hydrateIcons } from './icons.js';
 import { demoNetwork } from './demo.js';
+import { normalizeLinkedIn, draftFromText, suggestedTags } from './profile.js';
+import { TagEditor } from './tag-editor.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
@@ -13,7 +15,8 @@ const initials = v => v.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).
 let user, api, sync, vault, demo = false, selected = null, mode = null, formBase, editingId = null;
 let search = '', scope = 'all', filters = { skills: '', markets: '', interests: '', collaboration: '' };
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
-let autoTimer, verified = false;
+let autoTimer, verified = false, draftUndo = null, importedSuggestions = {};
+const tagEditors = Object.fromEntries([['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']].map(([key, label]) => [key, new TagEditor(q('#rs-' + key + '-editor'), key, label)]));
 const data = () => sync.local;
 const person = () => data().people[selected] ? viewPerson(data(), data().people[selected]) : null;
 const nameOf = id => data().members[id]?.name || 'Partecipante';
@@ -57,12 +60,13 @@ async function acquireLock(id) {
 function changed() {
   persist(); render();
   if (sync.pending) showConflicts();
-  const labels = { syncing: 'Sincronizzo…', saved: 'Sincronizzato', error: 'Da sincronizzare', conflict: 'Risolvi modifiche', idle: sync.dirty ? 'Da sincronizzare' : 'Sincronizzato' };
+  const labels = { syncing: 'Salvo…', saved: 'Salvato su GitHub', error: 'Da sincronizzare', conflict: 'Risolvi modifiche', idle: sync.dirty ? 'Da salvare' : 'Salvato su GitHub' };
   q('#rs-sync-label').textContent = demo ? 'Demo · modifiche temporanee' : labels[sync.status];
   if (sync.error) notice(sync.error.message);
   else if (sync.pending) notice('Ci sono modifiche da confrontare.');
   else if (vaultError) notice(vaultError);
-  else if (!demo) notice(!vault ? 'Sessione temporanea. Le modifiche non sincronizzate si perdono chiudendo la pagina.' : '');
+  else notice('');
+  q('#rs-remember').hidden = demo || !!vault;
 }
 async function synchronize() {
   if (!sync || demo) return;
@@ -81,7 +85,7 @@ function enter(state, identity, client, localVault, isDemo = false) {
   q('#rs-auth').hidden = true; q('#rs-header').hidden = false; q('#rs-app').hidden = false;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id]?.name || user.name);
   q('#rs-account').textContent = isDemo ? 'Esempi inventati' : `@${user.login}`;
-  q('#settings-identity').textContent = isDemo ? 'Demo · nessun dato reale' : `@${user.login} · ${CONFIG.owner}/${CONFIG.repo}`;
+  q('#settings-identity').textContent = isDemo ? 'Demo · nessun dato reale' : `@${user.login} · Rete condivisa`;
   q('#invite-link').hidden = isDemo || user.login.toLowerCase() !== CONFIG.owner.toLowerCase();
   q('[data-action="change-token"]').hidden = isDemo;
   q('[data-action="forget"]').hidden = !localVault;
@@ -128,13 +132,13 @@ function row(p) {
 function detail(p) {
   if (!p) return '';
   const own = p.memberId === user.id, o = offer(p), mine = ownRelationship(p);
-  let html = `<div class="rs-detail"><div class="rs-detail-top"><span class="rs-avatar">${esc(initials(p.name))}</span><div class="rs-detail-buttons"><button type="button" class="rs-icon-btn" data-action="edit" aria-label="${own ? 'Modifica il tuo profilo' : p.memberId ? 'Modifica il tuo contributo' : 'Modifica contatto'}">${icon('pencil')}</button><button type="button" class="rs-icon-btn" data-action="close" aria-label="Chiudi scheda">${icon('x')}</button></div></div><h2>${esc(p.name)}</h2><p class="rs-role">${esc(p.role)}</p>${own ? '<span class="rs-self">Il tuo profilo</span>' : p.memberId ? '<span class="rs-self">Membro del gruppo</span>' : ''}<section class="rs-offer"><h3>${p.memberId ? 'Come posso aiutarti?' : 'Come può aiutare?'}</h3><p>${esc(o?.help || 'Da indicare')}</p>${o ? `<span class="rs-source">${icon(o.authorId === p.memberId ? 'user-round' : 'pencil-line')}${o.authorId === p.memberId ? 'Scritto' : 'Aggiunto'} da ${esc(nameOf(o.authorId))}</span>` : ''}`;
+  let html = `<div class="rs-detail"><div class="rs-detail-top"><span class="rs-avatar">${esc(initials(p.name))}</span><div class="rs-detail-buttons"><button type="button" class="rs-icon-btn" data-action="edit" aria-label="${own ? 'Modifica il tuo profilo' : p.memberId ? 'Modifica il tuo contributo' : 'Modifica contatto'}">${icon('pencil')}</button><button type="button" class="rs-icon-btn" data-action="close" aria-label="Chiudi scheda">${icon('x')}</button></div></div><h2>${esc(p.name)}</h2><p class="rs-role">${esc(p.role)}</p>${own ? '<span class="rs-self">Il tuo profilo</span>' : p.memberId ? '<span class="rs-self">Membro del gruppo</span>' : ''}<section class="rs-offer"><h3>${p.memberId ? 'Puoi contattarmi per' : 'Da coinvolgere per'}</h3><p>${esc(o?.help || 'Da indicare')}</p>${o ? `<span class="rs-source">${icon(o.authorId === p.memberId ? 'user-round' : 'pencil-line')}${o.authorId === p.memberId ? 'Scritto' : 'Aggiunto'} da ${esc(nameOf(o.authorId))}</span>` : ''}`;
   const others = p.contributions.filter(c => c !== o && c.help);
   if (others.length) html += `<details class="rs-observation"><summary>Altri contributi · ${others.length}</summary>${others.map(c => `<p>${esc(c.help)}</p><span class="rs-source">Aggiunto da ${esc(nameOf(c.authorId))}</span>`).join('')}</details>`;
   html += '</section><section class="rs-tags-section" aria-label="Tag della persona">';
-  for (const [key, label] of [['skills', 'Competenze'], ['markets', 'Ambiti'], ['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag" title="${esc(p.contributions.filter(c => c[key].some(x => norm(x) === norm(t))).map(c => nameOf(c.authorId)).join(', '))}">${esc(t)}</span>`).join('')}</div></div>`;
+  for (const [key, label] of [['skills', 'Competenze'], ['markets', 'Settori'], ['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag" title="${esc(p.contributions.filter(c => c[key].some(x => norm(x) === norm(t))).map(c => nameOf(c.authorId)).join(', '))}">${esc(t)}</span>`).join('')}</div></div>`;
   const statuses = p.self ? [p.self] : p.contributions;
-  html += `<div class="rs-collaboration"><div><span class="rs-tag-label">Collaborazioni</span>${statuses.length ? statuses.map(c => `<strong>${esc(c.collaboration)}</strong><span class="rs-source">${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${esc(nameOf(c.authorId))}</span>`).join('') : '<strong>Da chiedere</strong>'}</div></div></section>`;
+  html += `<div class="rs-collaboration"><div><span class="rs-tag-label">Collaborazioni</span>${statuses.length ? statuses.map(c => `<strong>${esc(c.collaboration === 'Aperto' ? 'Disponibile' : c.collaboration === 'Non disponibile' ? 'Non ora' : c.authorId === p.memberId ? 'Non indicata' : 'Da verificare')}</strong><span class="rs-source">${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${esc(nameOf(c.authorId))}</span>`).join('') : '<strong>Da chiedere</strong>'}</div></div></section>`;
   if (!own) {
     html += `<section class="rs-relations"><h3 class="rs-section-heading">Relazioni · ${p.relationships.length}</h3>`;
     for (const r of p.relationships) html += `<section class="rs-relation" aria-label="Relazione con ${esc(nameOf(r.authorId))}"><div class="rs-rel-head"><strong>${icon('link')}${esc(r.authorId === user.id ? 'Tu' : nameOf(r.authorId))}</strong><span class="rs-closeness">${esc(r.level || 'Rapporto da indicare')}</span></div><p class="rs-context">${esc(r.context || 'Contesto da indicare')}</p><div class="rs-rel-dates"><span>${r.since ? `Dal ${esc(r.since)}` : 'Da quando: da indicare'}</span><span aria-hidden="true">·</span><span>Ultimo contatto ${esc(date(r.last) || 'da indicare')}</span></div>${r.note ? `<details class="rs-note"><summary>Nota</summary><p>${esc(r.note)}</p></details>` : ''}${r.authorId === user.id ? '<button class="rs-text-btn" data-action="relation">Modifica relazione</button>' : ''}</section>`;
@@ -142,6 +146,7 @@ function detail(p) {
     else html += '<div><button type="button" class="rs-text-btn rs-danger" data-action="unlink">Rimuovi dai miei</button></div>';
     html += '</section>';
   }
+  if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">${icon('link')}Profilo LinkedIn ↗</a>`;
   if (!p.memberId) html += '<div class="rs-person-actions"><button type="button" class="rs-text-btn rs-danger" data-action="delete-person">Elimina persona</button></div>';
   return html + '</div>';
 }
@@ -159,7 +164,7 @@ function render() {
   q('#rs-active-filters').innerHTML = active.map(([key, value]) => `<button type="button" class="rs-active-tag" data-remove-filter="${key}" aria-label="Rimuovi filtro ${esc(value)}">${esc(value)}${icon('x')}</button>`).join('');
   for (const b of root.querySelectorAll('[data-scope]')) b.setAttribute('aria-pressed', String(b.dataset.scope === scope));
   for (const key of ['skills', 'markets', 'interests']) {
-    const values = [...new Set(live(data().people).flatMap(p => viewPerson(data(), p)[key]).concat(filters[key] || []))].sort((a, b) => a.localeCompare(b, 'it'));
+    const values = [...new Map(live(data().people).flatMap(p => viewPerson(data(), p)[key]).concat(filters[key] || []).map(value => [norm(value), value])).values()].sort((a, b) => a.localeCompare(b, 'it'));
     q('#rs-filter-' + key).innerHTML = '<option value="">Qualsiasi</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     q('#rs-filter-' + key).value = filters[key];
   }
@@ -172,57 +177,91 @@ function closeDetail() {
   const old = selected; selected = null; render();
   Array.from(q('#rs-people').querySelectorAll('[data-person]')).find(b => b.dataset.person === old)?.focus();
 }
+function tagPool(key) { return [...new Set(live(data().contributions).flatMap(c => c[key]))]; }
+function refreshSuggestions() {
+  if (!mode) return;
+  const f = q('#rs-form').elements;
+  const suggested = suggestedTags([f.personHelp.value, f.personRole.value].join(' '), Object.fromEntries(Object.keys(tagEditors).map(k => [k, tagPool(k)])));
+  for (const [key, editor] of Object.entries(tagEditors)) editor.suggest([...suggested[key], ...(importedSuggestions[key] || [])]);
+}
+function updateChoices() {
+  const f = q('#rs-form').elements;
+  for (const b of q('#rs-level-choices').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.level === f.personLevel.value));
+  for (const b of q('#rs-collaboration-choices').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.collaboration === f.personCollaboration.value));
+}
 function openForm(kind) {
   if (sync.pending) { showConflicts(); return; }
   const form = q('#rs-form'), f = form.elements, p = kind === 'new' ? null : person();
-  mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false;
+  if (kind !== 'new' && !p) return;
+  mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false; draftUndo = null; importedSuggestions = {};
   const own = kind === 'profile', relationOnly = kind === 'relation';
-  q('#rs-extra').open = false; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true;
-  q('#rs-basics').hidden = relationOnly; q('#rs-tags-editor').hidden = relationOnly;
+  q('#rs-extra').open = false; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
+  q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || (kind === 'edit' && !ownRelationship(p));
-  q('#rs-help-label').textContent = own ? 'Come posso aiutarti?' : 'Come può aiutare?';
-  q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'La tua relazione' : kind === 'new' ? 'Nuovo contatto' : 'Il tuo contributo';
-  q('#rs-form-person').hidden = !relationOnly; q('#rs-form-person').textContent = p?.name || '';
+  q('#rs-help-label').textContent = own ? 'Per cosa possono contattarti?' : 'Per cosa coinvolgeresti questa persona?';
+  q('#rs-help-hint').textContent = own ? 'Problemi che sai risolvere, esperienza da condividere, contatti che puoi aprire.' : 'Esperienza, idee, contatti: cosa potrebbe portare?';
+  f.personHelp.placeholder = own ? 'Es. Trasformare un’idea in un servizio, valutare una soluzione, aprire una conversazione…' : 'Es. Dare forma a un brand, trovare partner, confrontarsi su un settore…';
+  q('#rs-form-title').textContent = own ? 'Cosa porti nella rete?' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'La sua scheda';
+  q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
+  q('#rs-form-person').hidden = false;
+  q('#rs-form-person').textContent = own ? 'Aiuta gli altri a capire quando coinvolgerti.' : relationOnly ? 'Una persona, più collegamenti. Aggiungi il tuo.' : 'Basta ciò che sai. Il resto può arrivare dopo.';
+  q('#rs-relation-caption').textContent = p ? `Come puoi mettere il gruppo in contatto con ${p.name}.` : 'Il collegamento che il gruppo può attivare.';
+  q('#rs-availability-label').textContent = own ? 'Vuoi essere coinvolto in nuove collaborazioni?' : 'Disponibilità a collaborare';
+  q('#rs-availability-unknown').textContent = own ? 'Non indicata' : 'Da verificare';
+  q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? 'Aggiungi relazione' : 'Salva persona') + icon('check');
   f.personName.required = !relationOnly; f.personName.disabled = !own && !!p?.memberId;
-  f.personRole.disabled = !own && !!p?.memberId;
-  q('#rs-form-source').textContent = own ? 'La tua presentazione, visibile al gruppo.' : 'Il tuo contributo e le tue note sono visibili al gruppo.';
-  if (kind !== 'new') {
-    const c = ownContribution(p), r = ownRelationship(p);
-    f.personName.value = p.name; f.personRole.value = p.role; f.personHelp.value = c?.help || '';
-    for (const key of ['Skills', 'Markets', 'Interests']) f['person' + key].value = c?.[key.toLowerCase()]?.join(', ') || '';
-    f.personCollaboration.value = c?.collaboration || 'Da chiedere';
-    for (const [field, key] of [['Context', 'context'], ['Since', 'since'], ['Level', 'level'], ['Last', 'last'], ['Note', 'note']]) f['person' + field].value = r?.[key] || '';
-  }
+  f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity('');
+  q('#rs-form-source').textContent = own ? 'Il tuo profilo, visibile al gruppo.' : 'Visibile al gruppo · il tuo contributo.';
+  const c = p ? ownContribution(p) : null, r = p ? ownRelationship(p) : null;
+  if (p) { f.personName.value = p.name; f.personRole.value = p.role; f.personHelp.value = c?.help || ''; f.personLinkedin.value = p.linkedin || ''; }
+  f.personCollaboration.value = c?.collaboration || 'Da chiedere';
+  for (const [field, key] of [['Context', 'context'], ['Since', 'since'], ['Level', 'level'], ['Last', 'last'], ['Note', 'note']]) f['person' + field].value = r?.[key] || '';
+  for (const [key, editor] of Object.entries(tagEditors)) editor.set(c?.[key] || [], tagPool(key));
+  updateChoices(); refreshSuggestions();
   root.dataset.view = 'form'; form.hidden = false; q('#rs-add').hidden = true;
-  (relationOnly ? f.personContext : f.personName.disabled ? f.personHelp : f.personName).focus();
+  (relationOnly ? f.personContext : own ? f.personHelp : f.personName.disabled ? f.personHelp : f.personName).focus({ preventScroll: true });
+  window.scrollTo?.({ top: 0, behavior: 'instant' });
+}
+function matchingPeople() {
+  const f = q('#rs-form').elements, term = norm(f.personName.value.trim());
+  let linkedin = ''; try { linkedin = normalizeLinkedIn(f.personLinkedin.value); } catch {}
+  return live(data().people).filter(p => (term.length >= 2 && norm(p.name).includes(term)) || (linkedin && p.linkedin && normalizeLinkedIn(p.linkedin) === linkedin)).slice(0, 5);
 }
 function showMatches(force = false) {
   if (mode !== 'new') return;
-  const term = norm(q('#rs-name').value.trim());
-  const found = term.length >= 2 ? live(data().people).filter(p => norm(p.name).includes(term)).slice(0, 5) : [];
+  const found = matchingPeople();
   q('#rs-matches').innerHTML = found.map(p => `<button type="button" class="rs-match" data-existing="${esc(p.id)}"><strong>${esc(p.name)}</strong><small>${esc(p.role)} · ${p.id === ownPersonId() ? 'Il tuo profilo' : data().relationships[keyFor(p.id, user.id)] ? 'Già nei miei' : 'Già nella rete'}</small></button>`).join('');
   q('#rs-matches').hidden = !found.length; q('#rs-name-conflict').hidden = !force;
+}
+function formSnapshot() {
+  const f = q('#rs-form').elements;
+  return { fields: Object.fromEntries(['personName', 'personRole', 'personHelp', 'personLinkedin'].map(k => [k, f[k].value])), tags: Object.fromEntries(Object.entries(tagEditors).map(([k, e]) => [k, [...e.values]])) };
 }
 function saveForm(e) {
   e.preventDefault();
   try {
     const f = e.currentTarget.elements, fresh = mode === 'new', own = mode === 'profile', relationOnly = mode === 'relation';
     const name = f.personName.value.trim();
-    if (fresh && !allowSameName && live(data().people).some(p => norm(p.name) === norm(name))) { showMatches(true); f.personName.focus(); return; }
+    let linkedin = '';
+    try { linkedin = normalizeLinkedIn(f.personLinkedin.value); f.personLinkedin.value = linkedin; }
+    catch (error) { q('#rs-tags-editor').open = true; f.personLinkedin.setCustomValidity(error.message); f.personLinkedin.reportValidity(); return; }
+    const sameProfile = fresh && linkedin && live(data().people).some(p => p.linkedin && normalizeLinkedIn(p.linkedin) === linkedin);
+    if (fresh && (sameProfile || (!allowSameName && live(data().people).some(p => norm(p.name) === norm(name))))) { showMatches(true); q('[data-action="different-person"]').hidden = !!sameProfile; f.personName.focus(); return; }
     const id = fresh ? crypto.randomUUID() : editingId;
     const showRelationship = !q('#rs-form-relation').hidden;
+    for (const editor of Object.values(tagEditors)) editor.commit();
     sync.edit(d => {
       if (fresh) d.people[id] = { id, name, role: '', memberId: null, createdBy: user.id };
       const p = d.people[id], key = keyFor(id, user.id);
       if (!p) throw new Error('Questa scheda non esiste più.');
       if (!relationOnly) {
-        if (!p.memberId || own) { p.name = name; p.role = f.personRole.value.trim(); }
+        if (!p.memberId || own) { p.name = name; p.role = f.personRole.value.trim(); if (linkedin || Object.hasOwn(p, 'linkedin')) p.linkedin = linkedin; }
         if (own) d.members[user.id].name = name;
-        d.contributions[key] = { id: key, personId: id, authorId: user.id, help: f.personHelp.value.trim(), skills: tags(f.personSkills.value), markets: tags(f.personMarkets.value), interests: tags(f.personInterests.value), collaboration: f.personCollaboration.value };
+        d.contributions[key] = { id: key, personId: id, authorId: user.id, help: f.personHelp.value.trim(), skills: [...tagEditors.skills.values], markets: [...tagEditors.markets.values], interests: [...tagEditors.interests.values], collaboration: f.personCollaboration.value };
       }
       if (showRelationship) d.relationships[key] = { id: key, personId: id, authorId: user.id, context: f.personContext.value.trim(), since: f.personSince.value.trim(), level: f.personLevel.value, last: f.personLast.value, note: f.personNote.value.trim() };
     }, formBase);
-    selected = id; clearFilters(); closeForm(); render(); scheduleSync();
+    selected = id; clearFilters(); closeForm(); render(); q('#rs-detail button')?.focus({ preventScroll: true }); scheduleSync();
   } catch (e) { notice(e.message); }
 }
 const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account' };
@@ -270,6 +309,35 @@ q('#unlock-form').addEventListener('submit', async e => {
   } catch (error) { releaseLock?.(); releaseLock = null; q('#auth-error').textContent = error.message; }
   finally { button.disabled = false; }
 });
+q('#draft-form').addEventListener('submit', e => {
+  e.preventDefault();
+  try {
+    const source = e.currentTarget.elements, f = q('#rs-form').elements;
+    if (!source.text.value.trim() && !source.linkedin.value.trim()) throw new Error('Incolla un testo o un link per iniziare.');
+    const draft = draftFromText(source.text.value, source.linkedin.value);
+    for (const editor of Object.values(tagEditors)) editor.commit();
+    draftUndo = formSnapshot();
+    for (const [field, value] of Object.entries({ personName: draft.name, personRole: draft.role, personHelp: draft.help, personLinkedin: draft.linkedin })) if (value && !f[field].disabled) f[field].value = value;
+    for (const [key, editor] of Object.entries(tagEditors)) editor.set([...editor.values, ...draft[key]], tagPool(key));
+    importedSuggestions = draft.suggestions; refreshSuggestions();
+    q('#rs-draft-applied').hidden = false;
+    q('#rs-draft-applied span').textContent = draft.shortened ? 'Testo ridotto a 1.500 caratteri. Rivedi la bozza prima di salvare.' : source.text.value.trim() ? 'Bozza pronta. Rivedi testo e tag prima di salvare.' : 'Profilo collegato. Aggiungi il nome o incolla una presentazione.';
+    if (draft.linkedin || draft.role || draft.markets.length || draft.interests.length) q('#rs-tags-editor').open = true;
+    q('#draft-dialog').close(); showMatches();
+    (f.personName.value ? f.personHelp : f.personName).focus();
+  } catch (error) { q('#draft-error').textContent = error.message; }
+});
+q('#remember-form').addEventListener('submit', async e => {
+  e.preventDefault(); const form = e.currentTarget, button = form.querySelector('[type="submit"]'), id = user.id; button.disabled = true;
+  try {
+    const protectedVault = await makeVault(form.elements.password.value);
+    if (!user || user.id !== id) return;
+    vault = protectedVault; persist(); await vaultQueue;
+    if (vaultError) { vault = null; throw new Error(vaultError); }
+    form.reset(); q('#remember-dialog').close(); q('[data-action="forget"]').hidden = false; changed();
+  } catch (error) { q('#remember-error').textContent = error.message; }
+  finally { button.disabled = false; }
+});
 q('#token-form').addEventListener('submit', async e => {
   e.preventDefault(); const form = e.currentTarget, b = form.querySelector('[type="submit"]'); b.disabled = true;
   try {
@@ -285,7 +353,9 @@ q('#conflict-form').addEventListener('submit', e => {
 q('#conflict-dialog').addEventListener('cancel', e => { e.preventDefault(); });
 q('#rs-form').addEventListener('submit', saveForm);
 q('#rs-search').addEventListener('input', e => { search = e.target.value; render(); });
-q('#rs-name').addEventListener('input', () => { allowSameName = false; showMatches(); });
+q('#rs-name').addEventListener('input', () => { allowSameName = false; q('[data-action="different-person"]').hidden = false; showMatches(); });
+for (const field of ['personHelp', 'personRole']) q('#rs-form').elements[field].addEventListener('input', refreshSuggestions);
+q('#rs-form').elements.personLinkedin.addEventListener('input', e => { e.target.setCustomValidity(''); showMatches(); });
 for (const key of Object.keys(filters)) q('#rs-filter-' + key).addEventListener('change', e => { filters[key] = e.target.value; render(); });
 q('#import-file').addEventListener('change', async e => {
   try {
@@ -306,9 +376,12 @@ root.addEventListener('click', async e => {
       selected = b.dataset.existing; clearFilters(); closeForm(); render();
       if (selected !== ownPersonId() && !ownRelationship(person())) openForm('relation'); else q('#rs-detail button')?.focus(); return;
     }
+    if (b.dataset.level !== undefined) { const f = q('#rs-form').elements; f.personLevel.value = f.personLevel.value === b.dataset.level ? '' : b.dataset.level; updateChoices(); return; }
+    if (b.dataset.collaboration) { q('#rs-form').elements.personCollaboration.value = b.dataset.collaboration; updateChoices(); return; }
+    if (b.dataset.context) { const f = q('#rs-form').elements; f.personContext.value = b.dataset.context + ' · '; f.personContext.focus(); return; }
     const a = b.dataset.action;
     if (a === 'new') openForm('new');
-    if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); q('#rs-detail button')?.focus(); }
+    if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
     if (a === 'edit') openForm(selected === ownPersonId() ? 'profile' : 'edit');
     if (a === 'relation') openForm('relation');
     if (a === 'cancel') { closeForm(); render(); selected ? q('#rs-detail button')?.focus() : q('#rs-add').focus(); }
@@ -320,6 +393,13 @@ root.addEventListener('click', async e => {
     if (a === 'reset-tags') { for (const k of Object.keys(filters)) filters[k] = ''; render(); }
     if (a === 'different-person') { allowSameName = true; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-form [type="submit"]').focus(); }
     if (a === 'sync') await synchronize();
+    if (a === 'draft-open') { q('#draft-form').reset(); q('#draft-form').elements.linkedin.value = q('#rs-form').elements.personLinkedin.value; q('#draft-error').textContent = ''; showDialog('#draft-dialog'); }
+    if (a === 'draft-undo' && draftUndo) {
+      const f = q('#rs-form').elements; for (const [key, value] of Object.entries(draftUndo.fields)) f[key].value = value;
+      for (const [key, editor] of Object.entries(tagEditors)) editor.set(draftUndo.tags[key], tagPool(key));
+      draftUndo = null; importedSuggestions = {}; q('#rs-draft-applied').hidden = true; refreshSuggestions();
+    }
+    if (a === 'remember' && !demo && !vault) { q('#remember-form').reset(); q('#remember-error').textContent = ''; q('#settings-dialog').close(); showDialog('#remember-dialog'); }
     if (a === 'settings') showDialog('#settings-dialog');
     if (a === 'close-dialog') b.closest('dialog').close();
     if (a === 'other-account') { q('#unlock-form').hidden = true; q('#login-form').hidden = false; }

@@ -27,7 +27,8 @@ export function validateNetwork(data) {
       check(validKey(key), 'identificatore');
       if (record === null) continue; // Tombstones preserve deletions across devices.
       check(plain(record) && record.id === key, `record ${table}`);
-      check(Object.keys(record).length === shapes[table].length && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
+      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin'] : [])];
+      check(Object.keys(record).every(k => allowed.includes(k)) && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
       for (const [field, value] of Object.entries(record)) {
         check(!dangerous.has(field), 'campo riservato');
         if (['skills', 'markets', 'interests'].includes(field)) check(Array.isArray(value) && value.length <= 40 && value.every(v => string(v, 80) && v.trim()), 'tag');
@@ -35,7 +36,10 @@ export function validateNetwork(data) {
         else check(string(value), `campo ${field}`);
       }
       if (table === 'members') check(/^\d+$/.test(key) && /^[a-zA-Z0-9-]{1,39}$/.test(record.login) && record.name.trim(), 'identità');
-      if (table === 'people') check(record.name.trim() && record.name.length <= 160, 'nome');
+      if (table === 'people') {
+        check(record.name.trim() && record.name.length <= 160, 'nome');
+        if (record.linkedin) { try { normalizeLinkedIn(record.linkedin); } catch { check(false, 'profilo LinkedIn'); } }
+      }
       if (table === 'contributions') check(COLLABORATION.includes(record.collaboration), 'collaborazioni');
       if (table === 'relationships') check(LEVELS.includes(record.level) && (!record.last || /^\d{4}-\d{2}-\d{2}$/.test(record.last)), 'relazione');
     }
@@ -136,7 +140,7 @@ export function viewPerson(data, person) {
   const relationships = live(data.relationships).filter(r => r.personId === person.id);
   const self = contributions.find(c => c.authorId === person.memberId);
   return { ...person, contributions, relationships, self,
-    ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, tags(contributions.flatMap(c => c[k]).join(','))])),
+    ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(contributions.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
   };
 }
 export function findPeople(data, userId, { search = '', scope = 'all', filters = {} } = {}) {
@@ -144,8 +148,8 @@ export function findPeople(data, userId, { search = '', scope = 'all', filters =
   const own = data.members[userId]?.personId;
   return live(data.people).filter(p => p.id !== own).map(p => viewPerson(data, p)).filter(p =>
     (scope === 'all' || p.relationships.some(r => r.authorId === userId)) &&
-    Object.entries(filters).every(([k, v]) => !v || (k === 'collaboration' ? (p.self ? [p.self] : p.contributions).some(c => c.collaboration === v) : p[k]?.includes(v))) &&
-    words.every(w => norm([p.name, p.role, ...p.skills, ...p.markets, ...p.interests,
+    Object.entries(filters).every(([k, v]) => !v || (k === 'collaboration' ? (p.self ? [p.self] : p.contributions).some(c => c.collaboration === v) : p[k]?.some(value => norm(value) === norm(v)))) &&
+    words.every(w => norm([p.name, p.role, p.linkedin || '', ...p.skills, ...p.markets, ...p.interests,
       ...p.contributions.map(c => c.help), ...p.relationships.flatMap(r => [data.members[r.authorId]?.name, r.context, r.since, r.level, r.note])].join(' ')).includes(w))
   ).sort((a, b) => a.name.localeCompare(b.name, 'it'));
 }
@@ -157,15 +161,16 @@ export function mergeImport(current, incoming) {
 }
 const csvCell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"';
 export function exportCSV(data) {
-  const rows = [['ID persona', 'Nome', 'Ruolo', 'Conosciuto da', 'Come può aiutare', 'Competenze', 'Ambiti', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note']];
+  const rows = [['ID persona', 'Nome', 'Presentazione breve', 'Conosciuto da', 'Da coinvolgere per', 'Competenze', 'Settori', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note', 'LinkedIn']];
   for (const person of live(data.people)) {
     const p = viewPerson(data, person);
     const authors = new Set([...p.relationships.map(r => r.authorId), ...p.contributions.map(c => c.authorId)]);
     for (const authorId of authors) {
       const c = p.contributions.find(c => c.authorId === authorId), r = p.relationships.find(r => r.authorId === authorId);
-      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note]);
+      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, p.linkedin]);
     }
-    if (!authors.size) rows.push([p.id, p.name, p.role]);
+    if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin]);
   }
   return '\ufeff' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
 }
+import { normalizeLinkedIn } from './profile.js';
