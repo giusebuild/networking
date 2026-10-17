@@ -8,12 +8,6 @@
 
 Una pagina, da telefono o computer. Cerca per contributo, competenza, settore, interesse o contesto. Nessuna sezione progetti: prima rendiamo leggibile la rete.
 
-## Specifiche di prodotto
-
-**[PRODUCT.md](PRODUCT.md)** è il riferimento unico per valore, comportamento, user journey, perimetro e stato delle funzionalità. Le decisioni aggiornate al 18 ottobre 2026 prevedono una scheda centrata su **nome, «Posso/Può aiutare con…» e «Cerco/Cerca…»**, con classificazione assistita di competenze e settori.
-
-Il resto di questo README descrive **l’app attualmente pubblicata**: il campo «Cerco», la riga unificata di tag, l’importazione dalla rubrica e l’apertura WhatsApp non sono ancora presenti. I requisiti nuovi e le evoluzioni valutate sono distinti dalle funzioni già disponibili in PRODUCT.md.
-
 ## La beta: solo GitHub
 
 Due repository, zero backend e nessun servizio da attivare con una carta: `networking` contiene l’app pubblica, `networking-data` contiene l’archivio privato. È una beta per un **team fidato**: tutti i collaboratori del repository dati possono leggere l’intero archivio, incluse le note. I filtri dell’app non creano permessi diversi.
