@@ -1,6 +1,6 @@
 # Tramite
 
-**Ricorda chi conosci. Trova chi coinvolgere.** Una rete condivisa di persone, competenze e relazioni per costruire collaborazioni professionali.
+**Chi coinvolgere, per cosa, tramite chi.** Una rete condivisa di persone, competenze e relazioni per costruire collaborazioni professionali.
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo usa solo persone inventate.
 
@@ -8,11 +8,11 @@
 
 Una pagina, da telefono o computer. Cerca per contributo, competenza, settore, interesse o contesto. Nessuna sezione progetti: prima rendiamo leggibile la rete.
 
-## Criterio di prodotto
+## Specifiche di prodotto
 
-Il valore è usare le relazioni esistenti per trovare le persone con cui costruire collaborazioni e servizi. La schermata principale risponde a tre domande: **chi coinvolgere, per cosa, tramite chi**.
+**[PRODUCT.md](PRODUCT.md)** è il riferimento unico per valore, comportamento, user journey, perimetro e stato delle funzionalità. Le decisioni aggiornate al 18 ottobre 2026 prevedono una scheda centrata su **nome, «Posso/Può aiutare con…» e «Cerco/Cerca…»**, con classificazione assistita di competenze e settori.
 
-La rete è unica e comprende tutti i contatti del team. La provenienza si legge nelle schede e si usa come filtro quando serve. Il team si gestisce dal menu; i profili si aggiornano dall’avatar. Ogni nuova funzione deve aiutare a trovare una persona adatta o a fare il primo passo per coinvolgerla. La compilazione deve partire da poche informazioni utili e mostrare gli altri campi solo quando servono.
+Il resto di questo README descrive **l’app attualmente pubblicata**: il campo «Cerco», la riga unificata di tag, l’importazione dalla rubrica e l’apertura WhatsApp non sono ancora presenti. I requisiti nuovi e le evoluzioni valutate sono distinti dalle funzioni già disponibili in PRODUCT.md.
 
 ## La beta: solo GitHub
 
