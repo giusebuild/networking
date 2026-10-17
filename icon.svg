@@ -1,1 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#635bff"/><g fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"><rect x="25" y="12" width="14" height="14" rx="3"/><rect x="10" y="39" width="14" height="14" rx="3"/><rect x="40" y="39" width="14" height="14" rx="3"/><path d="M32 26v7M17 39v-6h30v6"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Tramite — una rete di persone</title>
+  <defs>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#8271ff"/>
+      <stop offset="1" stop-color="#5141df"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#violet)" d="M0 0h512v512H0z"/>
+  <path d="M256 248v26c0 22-112 17-112 52m112-52c0 22 112 17 112 52" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#e7e2ff">
+    <circle cx="144" cy="268" r="25"/>
+    <circle cx="368" cy="268" r="25"/>
+    <path d="M96 358v-12c0-24 21-40 48-40s48 16 48 40v12c0 7-5 12-12 12h-72c-7 0-12-5-12-12zm224 0v-12c0-24 21-40 48-40s48 16 48 40v12c0 7-5 12-12 12h-72c-7 0-12-5-12-12z"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="256" cy="156" r="29"/>
+    <path d="M200 250v-9c0-27 25-45 56-45s56 18 56 45v9c0 8-6 14-14 14h-84c-8 0-14-6-14-14z"/>
+  </g>
+</svg>

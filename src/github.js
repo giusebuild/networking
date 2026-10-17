@@ -65,7 +65,7 @@ export class GitHub {
     const content = JSON.stringify(data, null, 2) + '\n';
     if (new TextEncoder().encode(content).length > 900000) throw new Error('Archivio oltre 900 KB. Esporta i dati e riduci le note.');
     const result = await this.request(`${this.root}/contents/${this.config.path}`, {
-      method: 'PUT', body: JSON.stringify({ message: 'Aggiorna rete da Networking', content: toBase64(content), sha, branch: this.config.branch }),
+      method: 'PUT', body: JSON.stringify({ message: 'Aggiorna rete da Tramite', content: toBase64(content), sha, branch: this.config.branch }),
     });
     return result.content.sha;
   }

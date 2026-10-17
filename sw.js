@@ -1,6 +1,6 @@
 // Only the public shell is cached. GitHub API traffic and private data never enter Cache Storage.
 const CACHE = 'networking-shell-dev';
-const FILES = ['./', './index.html', './styles.css', './icon.svg', './manifest.webmanifest', './src/app.js', './src/config.js', './src/demo.js', './src/github.js', './src/icons.js', './src/model.js', './src/profile.js', './src/sync.js', './src/tag-editor.js', './src/vault.js'];
+const FILES = ['./', './index.html', './styles.css', './icon.svg', './icons/tramite-180.png', './icons/tramite-192.png', './icons/tramite-512.png', './manifest.webmanifest', './src/app.js', './src/config.js', './src/demo.js', './src/github.js', './src/icons.js', './src/model.js', './src/profile.js', './src/sync.js', './src/tag-editor.js', './src/vault.js'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('networking-shell-') && k !== CACHE).map(k => caches.delete(k))))));
 self.addEventListener('fetch', event => {

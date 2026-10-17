@@ -3,7 +3,7 @@ const root = new URL('../', import.meta.url);
 await rm(new URL('dist/', root), { recursive: true, force: true });
 await mkdir(new URL('dist/', root));
 // Allowlist: no private file, export, README, test fixture or credential can enter the site build.
-for (const name of ['index.html', 'styles.css', 'src', 'icon.svg', 'manifest.webmanifest', 'sw.js', '.nojekyll']) {
+for (const name of ['index.html', 'styles.css', 'src', 'icon.svg', 'icons', 'manifest.webmanifest', 'sw.js', '.nojekyll']) {
   await cp(new URL(name, root), new URL(`dist/${name}`, root), { recursive: true });
 }
 const { version } = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
@@ -20,7 +20,8 @@ index = index.replace(/src="\.\/src\/app\.js(?:\?[^"]*)?"/, `src="./src/app.js?v
   .replace('</head>', `<meta name="networking-release" content="${version}"></head>`);
 await writeFile(indexPath, index);
 const swPath = new URL('dist/sw.js', root);
-const shell = ['./', './index.html', `./styles.css?v=${version}`, './icon.svg', './manifest.webmanifest', ...modules.map(name => `./src/${name}?v=${version}`)];
+const icons = (await readdir(new URL('dist/icons/', root))).map(name => `./icons/${name}`);
+const shell = ['./', './index.html', `./styles.css?v=${version}`, './icon.svg', './manifest.webmanifest', ...icons, ...modules.map(name => `./src/${name}?v=${version}`)];
 let sw = await readFile(swPath, 'utf8');
 sw = sw.replace(/^const CACHE = .*$/m, `const CACHE = 'networking-shell-${version}';`)
   .replace(/^const FILES = .*$/m, `const FILES = ${JSON.stringify(shell)};`);

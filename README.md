@@ -1,8 +1,10 @@
-# Networking
+# Tramite
 
 **Ricorda chi conosci. Trova chi coinvolgere.** Una rete condivisa di persone, competenze e relazioni per costruire collaborazioni professionali.
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo usa solo persone inventate.
+
+**Tramite**: chi coinvolgere, per cosa, tramite chi. Nome e icona sono pronti per la schermata Home. Su iPhone, apri l’app in Safari e scegli **Condividi → Aggiungi alla schermata Home**. Se avevi già il collegamento, aggiungilo di nuovo per ricevere il nuovo nome e la nuova icona. Il codice resta nel repository `networking`; i dati restano in `networking-data`.
 
 Una pagina, da telefono o computer. Cerca per contributo, competenza, settore, interesse o contesto. Nessuna sezione progetti: prima rendiamo leggibile la rete.
 
@@ -55,7 +57,7 @@ L’app chiede un **token personale GitHub**, verifica l’identità tramite `GE
 
 ### Proprietario
 
-1. [Crea un token fine-grained](https://github.com/settings/personal-access-tokens/new?name=Networking&target_name=giusebuild&contents=write).
+1. [Crea un token fine-grained](https://github.com/settings/personal-access-tokens/new?name=Tramite&target_name=giusebuild&contents=write).
 2. Resource owner: **giusebuild**. Repository access: **Only select repositories → networking-data**.
 3. Repository permissions: **Contents → Read and write**. Imposta una scadenza.
 4. Incollalo nell’app e premi **Accedi**.
@@ -66,7 +68,7 @@ Non serve dare al token accesso al repository pubblico o ai workflow.
 
 1. Il proprietario la aggiunge come collaboratore a **[networking-data → Settings → Collaborators](https://github.com/giusebuild/networking-data/settings/access)**.
 2. La persona accetta l’invito con il **proprio** account GitHub.
-3. Per questo repository di un account personale usa un **[token classic con scope repo](https://github.com/settings/tokens/new?description=Networking&scopes=repo)**, poi accede dall’app.
+3. Per questo repository di un account personale usa un **[token classic con scope repo](https://github.com/settings/tokens/new?description=Tramite&scopes=repo)**, poi accede dall’app.
 
 Dal menu **⋯ → Il team** vedi chi è già entrato nell’app. Il proprietario trova il collegamento ai collaboratori GitHub e **Copia link** per mandare la guida al primo accesso. Copiare il link **non concede accesso**: prima serve l’invito GitHub. La lista nell’app contiene i profili registrati e non sostituisce la lista di chi ha effettivamente accesso al repository; rimuovere un collaboratore si fa su GitHub. Le copie locali già scaricate possono rimanere sul suo dispositivo.
 
