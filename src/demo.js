@@ -19,5 +19,17 @@ export function demoNetwork() {
   }
   const id = keyFor('demo-developer', '10002');
   data.relationships[id] = { id, personId: 'demo-developer', authorId: '10002', context: 'Presentato da un amico', since: '2025', level: 'Conoscenza occasionale', last: '', note: '' };
+  const needs = {
+    'demo-designer': ['Un videomaker con cui creare contenuti per studi medici.', ['Video'], ['Sanità']],
+    'demo-developer': ['Un designer per rendere più semplice un servizio di prenotazioni.', ['Design', 'Prenotazioni'], ['Digitale']],
+    'demo-business': ['Un partner tecnico con cui proporre servizi alle imprese locali.', ['Sviluppo software', 'Partnership'], ['Servizi B2B']],
+  };
+  for (const c of Object.values(data.contributions)) {
+    const [text, skills, markets] = needs[c.personId];
+    c.need = { text, skills, markets, updatedAt: '2026-10-18T00:00:00.000Z' };
+  }
+  // Reserved example numbers, never real contacts.
+  data.people['github-10002'].phone = '+447700900333';
+  data.people['demo-designer'].phone = '+447700900111';
   return { data, user };
 }

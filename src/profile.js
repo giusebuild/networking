@@ -13,7 +13,7 @@ export function normalizeLinkedIn(value) {
   return `https://www.linkedin.com/in/${match[1]}/`;
 }
 export const CATALOG = {
-  skills: ['Comunicazione', 'Grafica', '3D', 'Design', 'UX/UI', 'Ricerca utenti', 'Sviluppo software', 'Automazioni', 'Analisi dati', 'Project management', 'Product management', 'Vendite', 'Partnership', 'Marketing', 'Python', 'Java', 'JavaScript', 'SQL', 'AI', 'Formazione', 'Strategia', 'Finanza agevolata'],
+  skills: ['Comunicazione', 'Grafica', '3D', 'Design', 'UX/UI', 'Ricerca utenti', 'Siti web', 'Prenotazioni', 'Video', 'Fotografia', 'Sviluppo software', 'Automazioni', 'Analisi dati', 'Project management', 'Product management', 'Vendite', 'Partnership', 'Marketing', 'Python', 'Java', 'JavaScript', 'SQL', 'AI', 'Formazione', 'Strategia', 'Finanza agevolata'],
   markets: ['Digitale', 'Sanità', 'Servizi B2B', 'Nautica', 'Sociale', 'Formazione', 'Turismo', 'Energia', 'Retail', 'Manifattura', 'Finanza', 'Edilizia'],
   interests: ['Vela', 'Sport', 'Fotografia', 'Musica', 'Viaggi', 'Finanza agevolata', 'AI', 'Innovazione', 'Sostenibilità', 'Arte', 'Lettura', 'Volontariato'],
 };
@@ -25,7 +25,15 @@ const aliases = {
   'Product management': ['product manager', 'product owner'], 'AI': ['intelligenza artificiale', 'artificial intelligence'],
   'Sanità': ['healthcare', 'sanita digitale'], 'Vendite': ['sales', 'sviluppo commerciale'],
   'Marketing': ['marketer'], 'Formazione': ['formatore'],
+  'Siti web': ['sito web', 'siti', 'website', 'web design'], 'Prenotazioni': ['prenotazione', 'booking'],
+  'Video': ['videomaker', 'videomaking', 'video maker'], 'Fotografia': ['fotografo', 'fotografa'],
 };
+aliases['Sanità'].push('studi medici', 'studio medico', 'cliniche', 'clinica');
+const requestStart = /^(?:(?:sto|sta|stiamo)\s+cercando|cerc(?:o|a|hiamo|ano)|(?:ho|ha|abbiamo)\s+bisogno|(?:mi|gli|ci)\s+serv(?:e|ono)|bisogno|richiesta)\b/i;
+export function separateIntents(text) {
+  const clauses = String(text || '').replace(/\s+(?:e|ma)\s+(?=(?:cerco|cerca|ho bisogno|ha bisogno|mi serve|gli serve)\b)/gi, '\n').split(/\r?\n|[.!?]\s+|\s+[—–-]\s+/).map(x => x.trim()).filter(Boolean);
+  return { help: clauses.filter(x => !requestStart.test(x)).join('\n'), need: clauses.filter(x => requestStart.test(x)).join('\n') };
+}
 function mentions(text, value) {
   return [value, ...(aliases[value] || [])].some(term => {
     const escaped = norm(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -33,23 +41,29 @@ function mentions(text, value) {
   });
 }
 export function suggestedTags(text, extra = {}) {
-  const clauses = norm(text).split(/\n|\s+[—–-]\s+|[;.!?]/).map(x => x.trim()).filter(Boolean);
+  const clauses = norm(text).replace(/(?:https?:\/\/|(?:www\.)?linkedin\.com\/)\S+/g, '').split(/\n|\s+[—–-]\s+|[;.!?]/).map(x => x.trim()).filter(Boolean);
   const personal = clauses.filter(x => /interess|passion|hobby|tempo libero|mi piace|ama\b|vorrei|imparare|sto studiando|mi piacerebbe/.test(x));
   const professional = clauses.filter(x => !personal.includes(x) && !/\bnon\b|\bno\b|senza competenz/.test(x));
   return Object.fromEntries(Object.entries(CATALOG).map(([key, values]) => {
     const pool = unique([...values, ...(extra[key] || [])]);
-    const source = key === 'interests' ? personal : professional;
+    const source = key === 'interests' ? personal : professional.filter(x => !requestStart.test(x));
     return [key, pool.filter(value => source.some(line => mentions(line, value)))];
   }));
+}
+export function needTags(text, extra = {}) {
+  const stripped = String(text || '').replace(/\b(?:vorrei|imparare|sto studiando|mi piacerebbe|interesse|appassionat[oa])\b/gi, '').replace(/(^|\n)\s*(?:(?:sto|sta|stiamo)\s+cercando|cerc(?:o|a|hiamo|ano)|(?:ho|ha|abbiamo)\s+bisogno|(?:mi|gli|ci)\s+serv(?:e|ono))\s*/gi, '');
+  const tags = suggestedTags(stripped, extra);
+  return { skills: tags.skills, markets: tags.markets, interests: [] };
 }
 // A local, conservative draft from text supplied by the user. No profile fetching,
 // AI service, inferred relationship strength, date, or willingness to collaborate.
 export function draftFromText(text, linkedin = '') {
   const raw = String(text || '').trim().slice(0, 15000);
-  const draft = { name: '', role: '', help: '', linkedin: normalizeLinkedIn(linkedin), skills: [], markets: [], interests: [] };
+  const draft = { name: '', role: '', help: '', need: '', linkedin: normalizeLinkedIn(linkedin), skills: [], markets: [], interests: [] };
   if (!raw) return { ...draft, suggestions: suggestedTags('') };
   const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const headings = { nome: 'name', name: 'name', titolo: 'role', ruolo: 'role', headline: 'role', presentazione: 'help', descrizione: 'help', informazioni: 'help', about: 'help', competenze: 'skills', skills: 'skills', ambiti: 'markets', settori: 'markets', interessi: 'interests', interests: 'interests', linkedin: 'linkedin' };
+  Object.assign(headings, { 'posso aiutare con': 'help', 'puo aiutare con': 'help', offro: 'help', offre: 'help', cerco: 'need', cerca: 'need', bisogno: 'need' });
   let section = '', hadLabels = false;
   for (const line of lines) {
     if (/^(?:https?:\/\/)?(?:(?:www|[a-z]{2})\.)?linkedin\.com\/in\//i.test(line)) {
@@ -69,7 +83,7 @@ export function draftFromText(text, linkedin = '') {
     }
     if (/^(esperienza|experience|formazione|education|attivita|activity|licenze|certificazioni)$/i.test(norm(line))) { section = ''; continue; }
     if (['skills', 'markets', 'interests'].includes(section)) draft[section].push(line.replace(/^[-•]\s*/, ''));
-    else if (section === 'help') draft.help += (draft.help ? '\n' : '') + line;
+    else if (section === 'help' || section === 'need') draft[section] += (draft[section] ? '\n' : '') + line;
   }
   if (!hadLabels || !draft.name) {
     // Only name-shaped first lines become a proposed name. Never derive it from a URL slug.
@@ -79,14 +93,18 @@ export function draftFromText(text, linkedin = '') {
     if (note && nameLike(note[1])) { draft.name = note[1]; if (!hadLabels) draft.help = note[2]; }
     else if (nameLike(first) && first.includes(' ') && !/\b(consulenza|comunicazione|project manager|product manager)\b/i.test(first)) {
       draft.name = first;
-      if (!draft.role && lines[1] && lines[1].length <= 160 && !Object.hasOwn(headings, norm(lines[1]))) draft.role = lines[1];
+      if (!draft.role && lines[1] && lines[1].length <= 160 && !Object.hasOwn(headings, norm(lines[1])) && !requestStart.test(lines[1]) && !/^(realizzo|aiuto|progetto|offro|posso)\b/i.test(lines[1])) draft.role = lines[1];
       if (!hadLabels) draft.help = lines.slice(draft.role ? 2 : 1).join('\n');
     } else if (!hadLabels) draft.help = raw;
   }
-  const suggestions = suggestedTags(raw);
+  if (/^(?:https?:\/\/)?(?:(?:www|[a-z]{2})\.)?linkedin\.com\/in\/\S+$/i.test(draft.help)) draft.help = '';
+  const separated = separateIntents(draft.help);
+  draft.help = separated.help;
+  draft.need = [draft.need, separated.need].filter(Boolean).join('\n').slice(0, 1500);
+  const suggestions = suggestedTags(draft.help || draft.role || (draft.name || draft.need || draft.linkedin ? '' : raw));
   for (const key of ['skills', 'markets', 'interests']) draft[key] = unique((draft[key].length ? draft[key] : suggestions[key]).map(x => x.slice(0, 80)));
   draft.name = draft.name.slice(0, 160); draft.role = draft.role.slice(0, 160); draft.help = draft.help.slice(0, 1500);
-  return { ...draft, suggestions, shortened: raw.length > 1500 && draft.help.length === 1500 };
+  return { ...draft, needTags: needTags(draft.need), suggestions, shortened: raw.length > 1500 && draft.help.length === 1500 };
 }
 
 // Quick notes are supplied by the person mapping the contact. Only explicit
