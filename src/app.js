@@ -238,7 +238,7 @@ function saveQuickPerson(e) {
       d.relationships[key] = { id: key, personId: id, authorId: user.id, context: quickDraft.context, since: quickDraft.since, level: '', last: '', note: '' };
     });
     q('#quick-dialog').close(); selected = id; clearFilters(); closeForm(); render(); scheduleSync();
-    q('#rs-detail button')?.focus({ preventScroll: true });
+    focusDetail();
   } catch (error) { q('#quick-error').textContent = error.message; }
 }
 function resetUI() {
@@ -367,6 +367,10 @@ function render() {
 }
 function clearFilters() { search = ''; q('#rs-search').value = ''; for (const k of Object.keys(filters)) filters[k] = ''; }
 function closeForm() { mode = null; formBase = null; editingId = null; q('#rs-form').hidden = true; q('#rs-add').hidden = false; root.dataset.view = 'network'; }
+function focusDetail() {
+  q('#rs-detail button')?.focus({ preventScroll: true });
+  q('#rs-detail').scrollIntoView?.({ block: 'start', behavior: 'instant' });
+}
 function closeDetail() {
   const old = selected; selected = null; render();
   Array.from(q('#rs-people').querySelectorAll('[data-person]')).find(b => b.dataset.person === old)?.focus();
@@ -460,7 +464,7 @@ function saveForm(e) {
       }
       if (showRelationship) d.relationships[key] = { id: key, personId: id, authorId: user.id, context: f.personContext.value.trim(), since: f.personSince.value.trim(), level: f.personLevel.value, last: f.personLast.value, note: f.personNote.value.trim() };
     }, formBase);
-    selected = id; clearFilters(); closeForm(); render(); q('#rs-detail button')?.focus({ preventScroll: true }); scheduleSync();
+    selected = id; clearFilters(); closeForm(); render(); focusDetail(); scheduleSync();
   } catch (e) { notice(e.message); }
 }
 const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account', need: 'Cerca', phone: 'Telefono' };
@@ -586,12 +590,12 @@ root.addEventListener('click', async e => {
       return;
     }
     if (b.dataset.skillFilter) { filters.skills = norm(filters.skills) === norm(b.dataset.skillFilter) ? '' : b.dataset.skillFilter; selected = null; render(); return; }
-    if (b.dataset.person) { selected = b.dataset.person; render(); q('#rs-detail button')?.focus(); return; }
+    if (b.dataset.person) { selected = b.dataset.person; render(); focusDetail(); return; }
     if (b.dataset.introduction) { openIntroduction(b.dataset.introduction); return; }
     if (b.dataset.accessRole) { openAccessGuide(b.dataset.accessRole); return; }
     if (b.dataset.existing) {
       selected = b.dataset.existing; clearFilters(); closeForm(); render();
-      if (selected !== ownPersonId() && !ownRelationship(person())) openForm('relation'); else q('#rs-detail button')?.focus(); return;
+      if (selected !== ownPersonId() && !ownRelationship(person())) openForm('relation'); else focusDetail(); return;
     }
     if (b.dataset.level !== undefined) { const f = q('#rs-form').elements; f.personLevel.value = f.personLevel.value === b.dataset.level ? '' : b.dataset.level; updateChoices(); return; }
     if (b.dataset.collaboration) { q('#rs-form').elements.personCollaboration.value = b.dataset.collaboration; updateChoices(); return; }
@@ -604,7 +608,7 @@ root.addEventListener('click', async e => {
     if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
     if (a === 'edit') openForm(selected === ownPersonId() ? 'profile' : 'edit');
     if (a === 'relation') openForm('relation');
-    if (a === 'cancel') { closeForm(); render(); selected ? q('#rs-detail button')?.focus() : q('#rs-add').focus(); }
+    if (a === 'cancel') { closeForm(); render(); selected ? focusDetail() : q('#rs-add').focus(); }
     if (a === 'close') closeDetail();
     if (a === 'clear') { clearFilters(); render(); }
     if (a === 'clear-search') { search = ''; q('#rs-search').value = ''; render(); q('#rs-search').focus(); }
@@ -652,7 +656,7 @@ root.addEventListener('click', async e => {
     }
   } catch (e) { notice(e.message); }
 });
-root.addEventListener('keydown', e => { if (e.key === 'Escape' && !root.querySelector('dialog[open]')) { if (mode) { closeForm(); render(); } else if (selected) closeDetail(); } });
+root.addEventListener('keydown', e => { if (e.key === 'Escape' && !root.querySelector('dialog[open]')) { if (mode) { closeForm(); render(); if (selected) focusDetail(); } else if (selected) closeDetail(); } });
 window.addEventListener('online', synchronize);
 window.addEventListener('offline', () => { if (sync && !demo) notice('Sei offline. Le modifiche si sincronizzeranno al ritorno della connessione.'); });
 window.addEventListener('beforeunload', e => { if ((sync?.dirty || sync?.pending) && !demo) { e.preventDefault(); e.returnValue = ''; } });

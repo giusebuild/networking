@@ -101,3 +101,7 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{cursor:
 #rete-tag .rs-form-actions{position:sticky;bottom:0;background:var(--rs-bg);z-index:3}
 @media(max-width:760px){#rete-tag .rs-brand{font-size:20px}#rete-tag .rs-top{padding:17px 20px}#rete-tag .rs-main{padding-top:16px}#rete-tag .rs-title-row{margin-bottom:17px}#rete-tag .rs-person{padding:20px;border-radius:20px}#rete-tag .rs-help-copy{font-size:14px}#rete-tag .rs-network-tools{margin-top:17px}#rete-tag[data-open="true"] .rs-network-tools{display:none}#rete-tag[data-view="form"] #rs-header{display:none}#rete-tag .rs-form-card{padding:21px}#rete-tag .rs-person-need{padding:18px}#rete-tag .rs-person-route{font-size:12px}#rete-tag .rs-form-actions{padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}#rete-tag .rs-smart-add input{font-size:16px}}
 @media(max-width:480px){#rete-tag #quick-dialog{padding:28px 23px calc(20px + env(safe-area-inset-bottom,0px));border-radius:26px 26px 0 0;max-width:none}#rete-tag .rs-quick-preview textarea{font-size:16px;min-height:76px}#rete-tag .rs-selected-chip{font-size:11px;min-height:33px}#rete-tag .rs-quick-preview{gap:10px}#rete-tag .rs-intents button{font-size:12px;padding:8px 15px}#rete-tag .rs-quick-input{font-size:16px}}
+
+/* Keep the selected person visible after a save or a long scroll. */
+#rete-tag #rs-detail{position:sticky;top:24px;align-self:start;scroll-margin-top:24px}#rete-tag .rs-detail{position:static}
+@media(max-width:760px){#rete-tag #rs-detail{position:static;scroll-margin-top:0}}
