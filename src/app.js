@@ -406,7 +406,7 @@ function openForm(kind) {
   q('#rs-availability-unknown').textContent = own ? 'Non indicata' : 'Da verificare';
   q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? (ownRelationship(p) ? 'Salva relazione' : 'Aggiungi relazione') : 'Salva persona') + icon('check');
   f.personName.required = !relationOnly; f.personName.disabled = !own && !!p?.memberId;
-  f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personPhone.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity('');
+  f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personPhone.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity(''); f.personPhone.setCustomValidity('');
   q('#rs-form-source').textContent = own ? 'Il tuo profilo, visibile al gruppo.' : 'Visibile al gruppo · il tuo contributo.';
   const c = p ? ownContribution(p) : null, r = p ? ownRelationship(p) : null;
   if (p) { f.personName.value = p.name; f.personRole.value = p.role; f.personHelp.value = c?.help || ''; f.personLinkedin.value = p.linkedin || ''; f.personPhone.value = p.phone || ''; f.personNeed.value = c?.need?.text || ''; }

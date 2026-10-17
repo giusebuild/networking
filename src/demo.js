@@ -30,6 +30,7 @@ export function demoNetwork() {
   }
   // Reserved example numbers, never real contacts.
   data.people['github-10002'].phone = '+447700900333';
+  data.contributions['github-10002:10002'] = { id: 'github-10002:10002', personId: 'github-10002', authorId: '10002', help: 'Mettere in contatto professionisti e organizzare incontri di community.', skills: ['Partnership'], markets: ['Servizi B2B'], interests: [], collaboration: 'Aperto' };
   data.people['demo-designer'].phone = '+447700900111';
   return { data, user };
 }
