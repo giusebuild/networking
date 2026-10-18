@@ -3,6 +3,7 @@ import { PROFILE_FIELDS, UUID, cleanProfile, validateProfileFields } from './pro
 import { live, keyFor, norm } from './model.js';
 import { responseCandidates } from './profile-requests.js';
 import { readSharedLink } from './share-links.js';
+import { hasNewerDeclaration } from './declarations.js';
 
 const KEY = 'tramite:personal-card:v1';
 const invalid = () => { throw new Error('Scheda condivisa non valida. Chiedi di inviare di nuovo il link.'); };
@@ -54,6 +55,7 @@ export function personalCardTarget(data, card, userId, targetId = '') {
   validatePersonalCard(card);
   if (!data.members[userId]) throw new Error('Accedi alla tua rete per aggiungere una scheda.');
   if (live(data.members).some(m => m.profileCardId === card.id)) throw new Error('Questa persona ha già un profilo nel team.');
+  if (hasNewerDeclaration(live(data.contributions), card.id, card.updatedAt)) throw new Error('Nella rete c’è già una scheda più recente di questa persona. Chiedi il link aggiornato.');
   const candidates = personalCardCandidates(data, card);
   if (targetId && !candidates.some(p => p.id === targetId)) throw new Error('Scegli una delle schede corrispondenti.');
   const existing = targetId ? data.people[targetId] : null;
@@ -73,7 +75,7 @@ export function applyPersonalCard(data, card, userId, targetId = '', now = new D
   const c = data.contributions[key] ||= { id: key, personId: p.id, authorId: userId, help: '', skills: [], markets: [], interests: [], collaboration: 'Da chiedere' };
   const retained = preserveLegacyNeeds(c.reply, fields);
   if (Object.hasOwn(retained, 'needs')) data.schemaVersion = 2;
-  c.reply = { ...retained, cardId: card.id, responseId: card.revision, updatedAt: now };
+  c.reply = { ...retained, cardId: card.id, cardUpdatedAt: card.updatedAt, responseId: card.revision, updatedAt: now };
   for (const k of ['role', 'phone', 'email', 'linkedin']) if (!p[k] && fields[k]) p[k] = fields[k];
   return p.id;
 }

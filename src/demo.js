@@ -19,6 +19,8 @@ export function demoNetwork() {
   }
   const id = keyFor('demo-developer', '10002');
   data.relationships[id] = { id, personId: 'demo-developer', authorId: '10002', context: 'Presentato da un amico', since: '2025', level: 'Conoscenza occasionale', last: '', note: '' };
+  data.contributions[id] = { id, personId: 'demo-developer', authorId: '10002', help: 'Formazione pratica su software e automazioni per piccoli team.', skills: ['Formazione'], markets: ['Digitale'], interests: [], collaboration: 'Da chiedere' };
+  data.people['demo-developer'].email = 'luca@example.test';
   const needs = {
     'demo-designer': ['Un videomaker con cui creare contenuti per studi medici.', ['Video'], ['Sanità']],
     'demo-developer': ['Un designer per rendere più semplice un servizio di prenotazioni.', ['Design', 'Prenotazioni'], ['Digitale']],

@@ -4,7 +4,8 @@ import { NeedsEditor } from './needs-editor.js';
 import { needEntries, needsMap, profileNeeds, canCloseNeed } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { CONFIG } from './config.js';
-import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, removeFromNetwork, matchingNeeds } from './model.js';
+import { clone, norm, live, keyFor, ensureMember, viewPerson, networkPeople, findPeople, filterTags, matchingOffers, validateNetwork, exportCSV, removeFromNetwork, matchingNeeds } from './model.js';
+import { formatConflictValue } from './conflict-copy.js';
 import { GitHub } from './github.js';
 import { NetworkSync } from './sync.js';
 import { listVaults, makeDeviceVault, saveVault, openVault, openDeviceVault, forgetVault, activeAccount, clearActiveAccount } from './vault.js';
@@ -47,7 +48,11 @@ const nameOf = id => data().members[id]?.name || 'Partecipante';
 const ownPersonId = () => data().members[user.id].personId;
 const ownContribution = p => p.contributions.find(c => c.authorId === user.id);
 const ownRelationship = p => p.relationships.find(r => r.authorId === user.id);
-const offer = p => p.self || p.declarations.find(c => c.help) || [ownContribution(p), ...p.contributions].find(c => c?.help) || ownContribution(p) || p.contributions[0];
+const offer = p => {
+  const matched = search || filters.skills || filters.markets ? matchingOffers(p, { search, filters }) : [];
+  const candidates = matched.length ? matched : p.offering;
+  return candidates.find(c => c === p.self) || candidates.find(c => c.reported && c.help) || candidates.find(c => c.authorId === user.id && c.help) || candidates.find(c => c.help) || candidates[0];
+};
 const sharedPerson = p => !!p.memberId || [...p.relationships, ...p.contributions].some(r => r.authorId !== user.id) || p.createdBy !== user.id;
 const date = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v;
 const owner = () => !demo && user?.login.toLowerCase() === CONFIG.owner.toLowerCase();
@@ -410,7 +415,7 @@ function reviewResponse() {
   try {
     const { r, candidates, target, p } = incomingSelection();
     q('#response-existing-row').hidden = !candidates.length;
-    q('#response-existing').innerHTML = '<option value="">Aggiungi una nuova persona</option>' + candidates.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.exact ? ' · corrispondenza' : ' · stesso nome'}</option>`).join('');
+    q('#response-existing').innerHTML = '<option value="">Aggiungi una nuova persona</option>' + candidates.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.exact ? ' · corrispondenza' : c.sharedContact ? ' · stesso recapito: verifica la persona' : ' · stesso nome'}</option>`).join('');
     if (target) q('#response-existing').value = target;
     responseBase = clone(data()); q('#response-title').textContent = `La scheda di ${r.name}`;
     q('#response-target').textContent = p ? `Scheda per ${p.name}. I tuoi appunti restano.` : 'Nuova persona per la tua rete. Verrà aggiunta solo dopo la conferma.';
@@ -580,18 +585,19 @@ function needsHTML(p, requests) {
 function row(p) {
   const o = offer(p), n = request(p), requests = visibleRequests(p), mine = ownRelationship(p);
   const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
-  const offeredTags = cardTags([...p.skills, ...p.markets]), neededTags = cardTags(requests.flatMap(c => [...c.need.skills, ...c.need.markets]));
+  const offeredTags = cardTags(search || filters.skills || filters.markets ? [...(o?.skills || []), ...(o?.markets || [])] : [...p.skills, ...p.markets]), neededTags = cardTags(requests.flatMap(c => [...c.need.skills, ...c.need.markets]));
   return `<article class="rs-person" data-selected="${p.id === selected}"><button type="button" class="rs-person-open" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span>${filters.intent !== 'need' && (o?.help || offeredTags) ? `<span class="rs-card-offer"><span class="rs-intent-label">${icon('briefcase')}Offre</span>${o?.help ? `<span class="rs-help-copy">${esc(o.help)}</span>` : ''}${offeredTags}</span>` : ''}${filters.intent !== 'offer' && n ? `<span class="rs-card-need"><span class="rs-intent-label">${icon('search')}Cerca</span>${requests.slice(0, 3).map(c => `<span class="rs-help-copy">${esc(c.need.text)}</span>`).join('')}${requests.length > 3 ? `<span class="rs-source">+${requests.length - 3} esigenze</span>` : ''}${neededTags}</span>` : ''}${!o?.help && !offeredTags && !n ? '<span class="rs-help-copy rs-placeholder">Una conoscenza da scoprire.</span>' : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>${contactActionsHTML(p)}</article>`;
 }
 function detail(p) {
   if (!p) return '';
   const own = p.memberId === user.id, editable = !p.memberId || own, o = offer(p), mine = ownRelationship(p);
+  const canEditOffer = editable && !o?.reported && (!o || o.authorId === user.id);
   const removable = !own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length));
   let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? p.declarations.length ? 'I tuoi appunti' : 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
   html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}</div></div></div>`;
   html += `<section class="rs-reach"><h3>${own ? 'Come contattarti' : 'Come contattarlo'}</h3>${contactActionsHTML(p)}</section>`;
   const source = c => c.reported ? 'Dalla scheda compilata' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
-  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}Tag</button>` : ''}</div></section>`;
+  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${canEditOffer ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported || search || filters.skills || filters.markets ? [...(o?.skills || []), ...(o?.markets || [])] : [...new Set([...p.skills, ...p.markets])])}${canEditOffer ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}Tag</button>` : ''}</div></section>`;
   const requests = visibleRequests(p, true), ownNotes = ownContribution(p);
   if (requests.length || editable) html += `<section class="rs-person-need"><div class="rs-needs-heading"><h3 class="rs-intent-label">${icon('search')}${own ? 'Cerco' : 'Cerca'}</h3>${editable ? `<button type="button" class="rs-text-btn rs-needs-edit" data-edit-field="personNeed" aria-label="${own ? 'Modifica le tue richieste' : 'Modifica le richieste annotate da te'}">${icon(needEntries(ownNotes).length ? 'pencil' : 'plus')}${own ? needEntries(ownNotes).length ? 'Modifica' : 'Aggiungi' : needEntries(ownNotes).length ? 'Appunti' : 'Aggiungi appunto'}</button>` : ''}</div>${needsHTML(p, requests)}</section>`;
 
@@ -632,7 +638,10 @@ function editAt(field) {
 }
 function render() {
   if (!sync || !user) return;
-  const found = findPeople(data(), user.id, { search, filters });
+  const people = networkPeople(data()), others = people.filter(p => p.id !== ownPersonId());
+  const pools = Object.fromEntries(['skills', 'markets', 'interests'].map(key => [key, filterTags(others, key, filters.intent)]));
+  for (const key of ['skills', 'markets']) if (filters[key] && !pools[key].some(t => norm(t) === norm(filters[key]))) filters[key] = '';
+  const found = findPeople(data(), user.id, { search, filters, people });
   if (selected && !data().people[selected]) selected = null;
   root.dataset.open = String(!!selected);
   const filtered = search || Object.values(filters).some(Boolean);
@@ -648,7 +657,7 @@ function render() {
     return `<button type="button" class="rs-active-tag" data-remove-filter="${key}" aria-label="Rimuovi filtro ${esc(label)}">${esc(label)}${icon('x')}</button>`;
   }).join('');
   for (const key of ['skills', 'markets', 'interests']) {
-    const values = [...new Map(live(data().people).flatMap(p => [...viewPerson(data(), p)[key], ...(key === 'interests' ? [] : viewPerson(data(), p)[key === 'skills' ? 'needSkills' : 'needMarkets'])]).concat(filters[key] || []).map(value => [norm(value), value])).values()].sort((a, b) => a.localeCompare(b, 'it'));
+    const values = pools[key];
     q('#rs-filter-' + key).innerHTML = '<option value="">Qualsiasi</option>' + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     q('#rs-filter-' + key).value = filters[key];
   }
@@ -656,7 +665,7 @@ function render() {
   q('#rs-filter-knower').innerHTML = '<option value="">Tutti</option>' + members.map(m => `<option value="${esc(m.id)}">${esc(m.id === user.id ? 'Io' : m.name)}</option>`).join('');
   q('#rs-filter-knower').value = filters.knower;
   const counts = new Map();
-  for (const p of findPeople(data(), user.id, { filters: { intent: filters.intent } })) for (const tag of (filters.intent === 'need' ? p.needSkills : p.skills)) { const key = norm(tag); const item = counts.get(key); counts.set(key, { label: item?.label || tag, count: (item?.count || 0) + 1 }); }
+  for (const p of findPeople(data(), user.id, { filters: { intent: filters.intent }, people })) for (const tag of (filters.intent === 'need' ? p.needSkills : p.skills)) { const key = norm(tag); const item = counts.get(key); counts.set(key, { label: item?.label || tag, count: (item?.count || 0) + 1 }); }
   const frequent = [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'it')).map(x => x.label);
   const quickSkills = [...new Set([...(filters.skills ? [filters.skills] : []), ...frequent])].slice(0, 4);
   q('#rs-quick-filters').hidden = !quickSkills.length;
@@ -773,10 +782,10 @@ function saveForm(e) {
   } catch (e) { notice(e.message); }
 }
 const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account', need: 'Cerca', phone: 'Telefono', email: 'Email', reply: 'Scheda compilata', profileRequestId: 'Invito alla scheda', profileInviteId: 'Link per nuove persone' };
-function conflictValue(v) { return v === null || v === undefined ? 'Rimosso' : Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? (v.text ? `${v.status === 'resolved' ? '[Risolta] ' : ''}${v.text} · ${[...(v.skills || []), ...(v.markets || [])].join(', ')}` : JSON.stringify(v, null, 2)) : String(v) || 'Vuoto'; }
+const conflictValue = formatConflictValue;
 function showConflicts() {
   const p = sync.pending; if (!p) return;
-  const labels = p.source === 'import' ? ['Nella rete', 'Nel file'] : p.source === 'edit' ? ['Nel modulo', 'Nella rete'] : ['Su questo dispositivo', 'Nel repository'];
+  const labels = p.source === 'import' ? ['Nella rete', 'Nel file'] : p.source === 'edit' ? ['Nel modulo', 'Nella rete'] : ['Su questo dispositivo', 'Nella rete condivisa'];
   q('#conflict-items').innerHTML = p.conflicts.map((c, i) => {
     const record = p.data[c.path[0]]?.[c.path[1]], personId = record?.personId || (c.path[0] === 'people' ? c.path[1] : null);
     const personName = c.label || p.data.people[personId]?.name || record?.name || 'Scheda';

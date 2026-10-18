@@ -56,7 +56,7 @@ q('#response-form').addEventListener('submit', async event => {
     const fields = { ...Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, k === 'need' ? '' : f[k].value])), needs: needsEditor.profile() };
     const reusable = makePersonalCard(fields, identityCard); identityCard = reusable;
     const response = { v: 3, kind: 'response', personId: invitation.personId, authorId: invitation.authorId, requestId: invitation.requestId,
-      responseId, cardId: reusable.id, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: '', needs: fields.needs,
+      responseId, cardId: reusable.id, cardUpdatedAt: reusable.updatedAt, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: '', needs: fields.needs,
       phone: normalizePhone(f.phone.value), email: normalizeEmail(f.email.value), linkedin: normalizeLinkedIn(f.linkedin.value) };
     const originalLink = encodeFormLink(response, window.location.href), link = await compactShareLink(originalLink);
     const large = link.length > CHAT_LINK_LIMIT, file = makeShareFile(originalLink, response.name);
@@ -79,7 +79,8 @@ q('#response-form').addEventListener('submit', async event => {
     if (invitation.replyEmail) q('#response-email').href = mailtoURL(invitation.replyEmail, 'La mia scheda · Tramite', message);
     q('#response-share').hidden = large || !navigator.share || channel === 'share'; q('#response-copy').hidden = channel === 'copy';
     q('#response-file').hidden = large; q('#response-file').textContent = canShareFile(file) ? 'Invia come file' : 'Scarica file';
-    q('#response-other').hidden = false; q('#response-other').open = false; q('#response-link-details').open = false;
+    q('#response-other').hidden = false; q('#response-other').open = false; q('#response-link-details').open = false; q('#response-link-details').hidden = large;
+    q('#response-transfer-hint').textContent = large ? 'Allega il file nella conversazione. Chi lo riceve lo apre in Tramite: Apri una scheda ricevuta → Apri file.' : 'La scheda arriva quando invii il messaggio. Chi la riceve apre il link e conferma l’aggiunta.';
     q('#response-editor').hidden = true; q('#response-ready').hidden = false; q('#response-copy-status').textContent = '';
     q('#response-ready-title').setAttribute('tabindex', '-1'); q('#response-ready-title').focus(); window.scrollTo?.({ top: 0 });
   } catch (error) { q('#response-validation').textContent = error.message; }
@@ -94,11 +95,16 @@ async function copyResponse() {
   try { await navigator.clipboard.writeText(outgoing.message); q('#response-copy-status').textContent = outgoing.large ? `Messaggio copiato. Invialo insieme al file a ${invitation.facilitator}.` : `Messaggio copiato. Incollalo nella conversazione con ${invitation.facilitator} e invialo.`; }
   catch { q('#response-manual').hidden = false; q('#response-message').focus(); q('#response-message').select(); q('#response-copy-status').textContent = `Copia il messaggio selezionato e invialo a ${invitation.facilitator}${outgoing.large ? ' insieme al file della scheda' : ''}.`; }
 }
+function downloadResponseFile() {
+  if (!outgoing) return;
+  downloadShareFile(outgoing.file);
+  q('#response-copy-status').textContent = `File scaricato. Allegalo alla conversazione con ${invitation.facilitator}.`;
+}
 async function sendResponseFile() {
   if (!outgoing) return;
   try {
     if (canShareFile(outgoing.file)) { await navigator.share({ files: [outgoing.file], title: 'La mia scheda · Tramite', text: `La scheda di ${outgoing.response.name}. In Tramite: Apri una scheda ricevuta → Apri file.` }); q('#response-copy-status').textContent = 'Completa l’invio del file nella conversazione.'; }
-    else { downloadShareFile(outgoing.file); q('#response-copy-status').textContent = `File scaricato. Allegalo nella conversazione con ${invitation.facilitator}.`; }
+    else downloadResponseFile();
   } catch (error) { q('#response-copy-status').textContent = error.name === 'AbortError' ? 'Condivisione annullata. Puoi riprovare.' : 'Condivisione non disponibile. Scarica il file e allegalo alla conversazione.'; q('#response-file').hidden = false; q('#response-file').textContent = 'Scarica file'; q('#response-other').open = true; }
 }
 q('#response-send').addEventListener('click', async () => {
@@ -114,7 +120,7 @@ q('#response-use-personal').addEventListener('click', usePersonal);
 q('#response-edit').addEventListener('click', () => { q('#response-ready').hidden = true; q('#response-editor').hidden = false; q('#response-validation').textContent = ''; refreshTextareaSizes(root); });
 q('#response-copy').addEventListener('click', copyResponse);
 q('#response-share').addEventListener('click', shareResponse);
-q('#response-file').addEventListener('click', () => { if (!outgoing) return; if (q('#response-file').textContent === 'Scarica file') downloadShareFile(outgoing.file); else sendResponseFile(); });
+q('#response-file').addEventListener('click', () => { if (!outgoing) return; if (q('#response-file').textContent === 'Scarica file') downloadResponseFile(); else sendResponseFile(); });
 hydrateIcons(document);
 mountOfferGuidance(root);
 mountTextareaSizes(root);

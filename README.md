@@ -4,6 +4,16 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
+## Ricerca e lavoro in team · 1.16.0
+
+La card, il dettaglio e il messaggio di contatto mostrano il contributo coerente con la ricerca o con il tag selezionato, anche quando è stato annotato da un altro collaboratore. I filtri rispettano Offre e Cerca; passando da una modalità all’altra viene tolto un tag che non può applicarsi.
+
+Le schede personali riutilizzabili e le nuove risposte al modulo conservano la data della versione ricevuta. Una versione riconoscibile come precedente viene fermata; quando due collaboratori ricevono versioni diverse della stessa scheda, si mostra la dichiarazione più recente riconoscibile. Gli appunti del team restano separati e lo storico non viene cancellato. Le vecchie risposte senza data della versione mantengono l’ordine precedente: non si inventa una data mancante.
+
+Un recapito condiviso da persone con nomi diversi resta un suggerimento da verificare, senza preselezionare l’identità. I conflitti di scheda mostrano i campi leggibili; le istruzioni di invio distinguono link e file. La ricerca riusa una sola proiezione della rete per ogni aggiornamento della schermata, riducendo scansioni ripetute quando i contatti crescono.
+
+**Aggiorna l’app su tutti i dispositivi del team prima di importare nuove versioni delle schede personali.** Le app precedenti possono non riconoscere i nuovi metadati della versione; non potranno sovrascrivere l’archivio che non riescono a leggere.
+
 ## Condivisione in chat · 1.15.0
 
 I link di inviti, risposte e schede personali usano ora un formato compresso con segmenti brevi. Il link apre il messaggio, seguito dalla scheda leggibile. I dati condivisi restano nel frammento del link: non occorre un servizio esterno per recuperarli.

@@ -1,5 +1,6 @@
 import { needEntries, needsMap, validateNeeds, profileNeeds } from './needs.js';
 import { PROFILE_FIELDS, UUID, validateProfileFields, reportedContribution } from './profile-card.js';
+import { currentDeclarations } from './declarations.js';
 export const TABLES = ['members', 'people', 'contributions', 'relationships'];
 export const COLLABORATION = ['Da chiedere', 'Aperto', 'Non disponibile'];
 export const LEVELS = ['', 'Appena conosciuto', 'Conoscenza occasionale', 'Buona conoscenza', 'Rapporto stretto'];
@@ -38,7 +39,7 @@ export function validateNetwork(data) {
           check(value === null || (plain(value) && Object.keys(value).length === 4 && ['text', 'skills', 'markets', 'updatedAt'].every(k => Object.hasOwn(value, k)) && string(value.text, 1500) && value.text.trim() && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)) && ['skills', 'markets'].every(k => Array.isArray(value[k]) && value[k].length <= 40 && value[k].every(v => string(v, 80) && v.trim()))), 'richiesta');
         }
         else if (field === 'reply') {
-          check(plain(value) && Object.keys(value).length === (Object.hasOwn(value, 'cardId') ? 10 : 9) + (Object.hasOwn(value, 'needs') ? 1 : 0) && (!Object.hasOwn(value, 'cardId') || (typeof value.cardId === 'string' && UUID.test(value.cardId))) && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
+          check(plain(value) && Object.keys(value).length === (Object.hasOwn(value, 'cardId') ? 10 : 9) + (Object.hasOwn(value, 'needs') ? 1 : 0) + (Object.hasOwn(value, 'cardUpdatedAt') ? 1 : 0) && (!Object.hasOwn(value, 'cardId') || (typeof value.cardId === 'string' && UUID.test(value.cardId))) && (!Object.hasOwn(value, 'cardUpdatedAt') || (Object.hasOwn(value, 'cardId') && typeof value.cardUpdatedAt === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value.cardUpdatedAt) && Number.isFinite(Date.parse(value.cardUpdatedAt)))) && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
           check(!Object.hasOwn(value, 'needs') || data.schemaVersion === 2, 'versione esigenze');
           try { validateProfileFields(value); } catch { check(false, 'campi risposta'); }
         }
@@ -178,13 +179,21 @@ export function resolveConflicts(merged, conflicts, choices) {
   });
   return validateNetwork(data);
 }
-export function viewPerson(data, person) {
-  const contributions = live(data.contributions).filter(c => c.personId === person.id);
-  const relationships = live(data.relationships).filter(r => r.personId === person.id);
+export function networkPeople(data) {
+  const index = { contributions: new Map(), relationships: new Map() };
+  for (const key of Object.keys(index)) for (const item of live(data[key])) {
+    const group = index[key].get(item.personId) || []; group.push(item); index[key].set(item.personId, group);
+  }
+  return live(data.people).map(p => viewPerson(data, p, index));
+}
+export function viewPerson(data, person, index = null) {
+  const contributions = index ? index.contributions.get(person.id) || [] : live(data.contributions).filter(c => c.personId === person.id);
+  const relationships = index ? index.relationships.get(person.id) || [] : live(data.relationships).filter(r => r.personId === person.id);
   const self = contributions.find(c => c.authorId === person.memberId);
-  const declarations = contributions.filter(c => c.reply).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt)).map(reportedContribution);
+  const declared = currentDeclarations(contributions).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt));
+  const declarations = declared.map(reportedContribution);
   const offering = self ? [self] : [...declarations, ...contributions];
-  const latest = self ? null : contributions.filter(c => c.reply).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt))[0]?.reply;
+  const latest = self ? null : declared[0]?.reply;
   return { ...person, ...Object.fromEntries(['role', 'phone', 'email', 'linkedin'].filter(k => latest?.[k]).map(k => [k, latest[k]])), contributions, declarations, relationships, self,
     offering, seeking: offering.flatMap(c => needEntries(c).map(n => ({ ...c, needId: n.id, need: n }))),
     needSkills: [...new Set(offering.flatMap(c => needEntries(c).flatMap(n => n.skills)))],
@@ -192,14 +201,22 @@ export function viewPerson(data, person) {
     ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(offering.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
   };
 }
+export function matchingOffers(p, { search = '', filters = {} } = {}) {
+  const words = norm(search).trim().split(/\s+/).filter(Boolean);
+  return p.offering.filter(c => ['skills', 'markets'].every(k => !filters[k] || c[k].some(t => norm(t) === norm(filters[k]))) && words.every(w => norm([p.name, p.role, c.help, ...c.skills, ...c.markets, ...c.interests].join(' ')).includes(w)));
+}
+export function filterTags(people, key, intent = '') {
+  const keys = key === 'interests' ? [key] : intent === 'offer' ? [key] : intent === 'need' ? [key === 'skills' ? 'needSkills' : 'needMarkets'] : [key, key === 'skills' ? 'needSkills' : 'needMarkets'];
+  return [...new Map(people.flatMap(p => keys.flatMap(k => p[k])).map(value => [norm(value), value])).values()].sort((a, b) => a.localeCompare(b, 'it'));
+}
 export function matchingNeeds(p, { search = '', filters = {} } = {}) {
   const words = norm(search).trim().split(/\s+/).filter(Boolean);
   return p.seeking.filter(c => ['skills', 'markets'].every(k => !filters[k] || c.need[k].some(t => norm(t) === norm(filters[k]))) && words.every(w => norm([p.name, p.role, c.need.text, ...c.need.skills, ...c.need.markets].join(' ')).includes(w)));
 }
-export function findPeople(data, userId, { search = '', filters = {} } = {}) {
+export function findPeople(data, userId, { search = '', filters = {}, people = networkPeople(data) } = {}) {
   const words = norm(search).trim().split(/\s+/).filter(Boolean);
   const own = data.members[userId]?.personId;
-  return live(data.people).filter(p => p.id !== own).map(p => viewPerson(data, p)).filter(p =>
+  return people.filter(p => p.id !== own).filter(p =>
     Object.entries(filters).every(([k, v]) => {
       if (!v) return true;
       if (k === 'knower') return p.relationships.some(r => r.authorId === v);

@@ -4,6 +4,7 @@ import { normalizePhone, normalizeEmail } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
 import { PROFILE_FIELDS, UUID, validateProfileFields, cleanProfile } from './profile-card.js';
 import { readSharedLink } from './share-links.js';
+import { hasNewerDeclaration } from './declarations.js';
 
 const fail = () => { throw new Error('Link della scheda non valido. Chiedi un nuovo link.'); };
 function shape(value, fields) {
@@ -25,10 +26,11 @@ export function validateInvitation(value) {
   return value;
 }
 export function validateResponse(value) {
-  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 3 ? ['needs'] : []), ...(value?.v >= 2 ? ['responseId'] : []), ...(Object.hasOwn(value || {}, 'cardId') ? ['cardId'] : [])]); context(value);
+  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 3 ? ['needs'] : []), ...(value?.v >= 2 ? ['responseId'] : []), ...(Object.hasOwn(value || {}, 'cardId') ? ['cardId'] : []), ...(Object.hasOwn(value || {}, 'cardUpdatedAt') ? ['cardUpdatedAt'] : [])]); context(value);
   if (value.kind !== 'response' || (value.v >= 2 && (typeof value.responseId !== 'string' || !UUID.test(value.responseId)))) fail();
   validateProfileFields(value);
   if (Object.hasOwn(value, 'cardId') && (typeof value.cardId !== 'string' || !UUID.test(value.cardId))) fail();
+  if (Object.hasOwn(value, 'cardUpdatedAt') && (!value.cardId || typeof value.cardUpdatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.cardUpdatedAt) || !Number.isFinite(Date.parse(value.cardUpdatedAt)))) fail();
   return value;
 }
 export function encodeFormLink(value, baseURL) {
@@ -80,13 +82,16 @@ export function responseCandidates(data, response) {
   const p = cleanProfile(response), normalizers = { phone: normalizePhone, email: normalizeEmail, linkedin: normalizeLinkedIn };
   return live(data.people).filter(person => !person.memberId).map(person => {
     const v = viewPerson(data, person);
-    const exact = (response.cardId && live(data.contributions).some(c => c.personId === person.id && c.reply?.cardId === response.cardId)) || Object.entries(normalizers).some(([k, normalize]) => p[k] && [person[k], v[k]].filter(Boolean).some(value => normalize(value).toLowerCase() === p[k].toLowerCase()));
-    return { ...person, exact };
-  }).filter(person => person.exact || norm(person.name.trim()) === norm(p.name));
+    const sameCard = !!response.cardId && live(data.contributions).some(c => c.personId === person.id && c.reply?.cardId === response.cardId);
+    const sameContact = Object.entries(normalizers).some(([k, normalize]) => p[k] && [person[k], v[k]].filter(Boolean).some(value => normalize(value).toLowerCase() === p[k].toLowerCase()));
+    const sameName = norm(person.name.trim()) === norm(p.name);
+    return { ...person, exact: sameCard || (sameContact && sameName), sharedContact: sameContact && !sameName };
+  }).filter(person => person.exact || person.sharedContact || norm(person.name.trim()) === norm(p.name));
 }
 export function responseTarget(data, response, userId, targetId = '') {
   validateResponse(response);
   if (response.authorId !== userId) throw new Error('Questa risposta è destinata a un altro membro del team.');
+  if (hasNewerDeclaration(live(data.contributions), response.cardId, response.cardUpdatedAt)) throw new Error('Nella rete c’è già una scheda più recente di questa persona. Chiedi la risposta aggiornata.');
   const responseId = response.responseId || response.requestId;
   if (live(data.contributions).some(c => c.reply?.responseId === responseId)) throw new Error('Questa risposta è già stata aggiunta.');
   if (response.personId === 'new') {
@@ -118,7 +123,7 @@ export function applyProfileResponse(data, response, userId, now = new Date().to
   // The response never replaces observations, custom tags, needs or known details.
   const retained = preserveLegacyNeeds(c.reply, fields);
   if (Object.hasOwn(retained, 'needs')) data.schemaVersion = 2;
-  c.reply = { ...retained, ...(response.cardId ? { cardId: response.cardId } : {}), responseId: response.responseId || response.requestId, updatedAt: now };
+  c.reply = { ...retained, ...(response.cardId ? { cardId: response.cardId } : {}), ...(response.cardUpdatedAt ? { cardUpdatedAt: response.cardUpdatedAt } : {}), responseId: response.responseId || response.requestId, updatedAt: now };
   if (response.personId !== 'new') c.profileRequestId = '';
   for (const k of ['role', 'phone', 'email', 'linkedin']) if (!person[k] && fields[k]) person[k] = fields[k];
   return person.id;
