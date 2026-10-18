@@ -1,3 +1,4 @@
+import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { CONFIG } from './config.js';
 import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, removeFromNetwork, makeNeed } from './model.js';
 import { GitHub } from './github.js';
@@ -242,6 +243,7 @@ function renderQuickPreview() {
   q('#quick-source').hidden = !quickDraft.presentation; q('#quick-source-text').textContent = quickDraft.presentation || '';
   q('#quick-context').textContent = quickDraft.context;
   q('#quick-context').hidden = !quickDraft.context;
+  refreshOfferGuidance(root);
   quickOfferTags.update([q('#quick-help').value, q('#quick-role').value].join('\n'), quickDraft.suggestions); quickRequestTags.update(q('#quick-need').value); updateProfileLinks();
   q('#quick-matches').innerHTML = quickHomonym ? '' : quickMatches().map(p => `<button type="button" class="rs-match" data-quick-existing="${esc(p.id)}"><span><strong>${esc(p.name)}</strong><small>Già nella rete · aggiungi il tuo collegamento</small></span>${icon('chevron-right')}</button>`).join('');
 }
@@ -286,7 +288,7 @@ async function requestProfile(personId = selected) {
   requestInvitation = profileInvitation(data(), identity, personId);
   requestContact = personId === 'new' ? null : viewPerson(data(), data().people[personId]);
   q('#request-qr-error').textContent = '';
-  q('#request-title').textContent = personId === 'new' ? 'Invita una persona' : 'Invia la scheda';
+  q('#request-title').textContent = personId === 'new' ? 'Fai compilare la scheda' : 'Invia la scheda';
   q('#request-description', '#request-qr-error').textContent = personId === 'new' ? 'Invia il modulo. La persona compila; tu apri la risposta e confermi l’aggiunta.' : 'La persona trova una bozza: può confermare, correggere o aggiungere. I tuoi appunti restano.';
   q('#request-prefill').hidden = personId === 'new';
   q('#request-prefill-copy').textContent = [requestInvitation.prefill.name, requestInvitation.prefill.help, requestInvitation.prefill.need && 'Cerca: ' + requestInvitation.prefill.need].filter(Boolean).join('\n');
@@ -580,6 +582,7 @@ function tagPool(key) { return [...new Set(live(data().contributions).flatMap(c 
 function refreshSuggestions() {
   if (!mode) return;
   const f = q('#rs-form').elements;
+  refreshOfferGuidance(root);
   offerTags.update([f.personHelp.value, f.personRole.value].join(' '), suggestedTags(f.personPresentation.value)); requestTags.update(f.personNeed.value);
 }
 function allTagPools() { return Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...tagPool(k), ...live(data().contributions).flatMap(c => c.need?.[k] || [])]])); }
@@ -597,8 +600,8 @@ function openForm(kind) {
   q('#rs-extra').open = false; q('#rs-relation-details').open = relationOnly; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || kind === 'edit';
-  q('#rs-help-label').textContent = own ? 'Cosa puoi fare?' : 'Cosa sa fare?';
-  q('#rs-help-hint').textContent = 'Servizi, esperienza o contatti utili.';
+  q('#rs-help-label').textContent = own ? 'Per cosa possono coinvolgerti?' : 'Per cosa lo coinvolgeresti?';
+  f.personHelp.dataset.offerSelf = String(own);
   f.personHelp.placeholder = 'Es. Siti e prenotazioni online per studi medici';
   q('#rs-need-label').textContent = own ? 'Di cosa hai bisogno?' : 'Di cosa ha bisogno?';
   q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Il tuo collegamento' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
@@ -911,5 +914,6 @@ async function applyAppUpdate() {
 window.addEventListener('hashchange', readResponseRoute);
 // The remembered session skips loginScreen; every entry path needs the shell icons.
 hydrateIcons(root);
+mountOfferGuidance(root);
 await restoreRememberedAccess();
 readResponseRoute();

@@ -1,3 +1,4 @@
+import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { decodeFormLink, encodeFormLink } from './profile-requests.js';
 import { normalizePhone, normalizeEmail, mailtoURL, whatsappURL } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
@@ -13,7 +14,7 @@ function usePersonal() {
   if (!personal) return; identityCard = personal;
   for (const k of Object.keys(PROFILE_FIELDS)) q('#response-form').elements[k].value = personal.profile[k];
   q('#response-prefill-hint').hidden = false; q('#response-prefill-hint').textContent = 'La tua scheda è già pronta. Rivedi e invia.'; q('#response-use-personal').hidden = true;
-  q('#response-remember').checked = true;
+  q('#response-remember').checked = true; refreshOfferGuidance(root);
 }
 try {
   invitation = decodeFormLink(window.location.hash, 'invite'); responseId = crypto.randomUUID();
@@ -78,3 +79,4 @@ async function copyResponse() {
 }
 q('#response-copy').addEventListener('click', copyResponse);
 hydrateIcons(document);
+mountOfferGuidance(root);

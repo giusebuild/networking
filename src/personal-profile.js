@@ -1,3 +1,4 @@
+import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { PROFILE_FIELDS } from './profile-card.js';
 import { makePersonalCard, personalCardLink, readPersonalCardLink, loadPersonalCard, rememberPersonalCard, forgetPersonalCard } from './personal-card.js';
 import { personContactActions } from './contacts.js';
@@ -9,6 +10,7 @@ try { saved = loadPersonalCard(); } catch { q('#personal-status').textContent = 
 function edit(card = null) {
   current = card;
   for (const k of Object.keys(PROFILE_FIELDS)) q('#personal-form').elements[k].value = card?.profile[k] || '';
+  refreshOfferGuidance(root);
   q('#personal-view').hidden = true; q('#personal-editor').hidden = false; q('#personal-form').elements.name.focus();
 }
 function view(card) {
@@ -60,3 +62,4 @@ q('#personal-forget').addEventListener('click', () => {
   catch { q('#personal-status').textContent = 'Il browser non consente di rimuovere la copia. Usa le impostazioni del sito.'; }
 });
 hydrateIcons(root);
+mountOfferGuidance(root);

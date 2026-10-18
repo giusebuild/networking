@@ -6,13 +6,19 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 ## Uso
 
-**Aggiungi** apre una scheda breve: nome, **Cosa sa fare?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
+**Aggiungi** apre una scheda breve: nome, **Per cosa lo coinvolgeresti?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
 
 La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** sono filtri della stessa rete: un tap attiva, un secondo tap sul filtro selezionato torna alla rete completa. Non esiste una sezione Tutti separata. La vista completa mantiene anche le conoscenze senza contributi o bisogni ancora descritti. Nei risultati filtrati le card mostrano soltanto il rispettivo blocco. Aprendo una persona si vede sempre la scheda completa. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
 
 Le informazioni dei conoscenti conservano l’autore. Le dichiarazioni di un partecipante hanno precedenza per la ricerca sul suo profilo. Nomi uguali non uniscono automaticamente persone: scegli una scheda già presente per aggiungere la tua relazione con **Lo conosco anch’io**. Il collegamento al titolare di una scheda creata prima del suo accesso non è automatico.
 
 **Rimuovi il tuo collegamento** conserva il lavoro degli altri; **Elimina contatto** è disponibile per una scheda esclusivamente propria, dopo conferma. I profili dei partecipanti non si eliminano come contatti.
+
+## Descrivere il contributo
+
+**Per cosa lo coinvolgeresti?** guida a un’attività concreta e al contesto in cui è utile. Sul proprio profilo e nei moduli pubblici la domanda è **Per cosa possono coinvolgerti?**. Con un testo generico, come Marketing digitale, compare un aiuto breve per precisare cosa si potrebbe realizzare; quando utile suggerisce di aggiungere per chi. I suggerimenti sono facoltativi, non cambiano il testo, non bloccano il salvataggio e non attribuiscono nuove competenze. La classificazione tramite tag rimane separata e correggibile.
+
+**Fai compilare la scheda** non concede accesso alla rete. **Aggiungi al team** riguarda invece i collaboratori che possono accedere all’intero archivio privato. Non esiste ancora un accesso esterno con profilo centrale e consultazione riservata delle opportunità.
 
 ## Il tuo collegamento
 
@@ -59,7 +65,7 @@ LinkedIn apre il profilo, senza messaggio precompilato. Il solo URL non importa 
 
 ## Fai compilare la scheda
 
-**Aggiungi → Fai compilare alla persona** prepara un modulo da inviare anche a chi non è ancora nella rete. Non devi creare prima una scheda vuota. Lo stesso link può essere usato per invitare più persone: ognuna genera la propria risposta. La nuova persona compare soltanto quando il mittente apre la risposta e conferma. Se ci sono corrispondenze per nome o recapiti, la conferma propone anche il collegamento a una scheda esistente; il solo nome non unisce automaticamente le persone.
+**Aggiungi → Fai compilare la scheda** prepara un modulo da inviare anche a chi non è ancora nella rete. Non devi creare prima una scheda vuota. Lo stesso link può essere usato per invitare più persone: ognuna genera la propria risposta. La nuova persona compare soltanto quando il mittente apre la risposta e conferma. Se ci sono corrispondenze per nome o recapiti, la conferma propone anche il collegamento a una scheda esistente; il solo nome non unisce automaticamente le persone.
 
 Da una scheda già presente, **Fai compilare la scheda** prepara invece una bozza con nome, Offre, Cerca e recapiti: la persona può confermarli, correggerli o aggiungere informazioni. La bozza usa gli appunti di chi invia o l’ultima risposta ricevuta; non include note personali, contesto della relazione, testo originale importato o osservazioni altrui. Il mittente può vedere la **Bozza condivisa** prima di inviare.
 
@@ -77,7 +83,7 @@ La risposta non verifica l’identità del compilatore: confermala riconoscendo 
 
 ## QR d’invito
 
-**Invita una persona** mostra il QR con l’icona di Tramite al centro. Basta inquadrarlo per aprire il modulo senza account. Se il mittente indica il proprio WhatsApp o email, il codice viene aggiornato per preparare la risposta nel canale scelto. **Scarica QR** produce un PNG; se il browser non riesce a generarlo, resta disponibile il vettoriale SVG. Il link e gli altri modi di condivisione rimangono utilizzabili.
+**Fai compilare la scheda** mostra il QR con l’icona di Tramite al centro. Basta inquadrarlo per aprire il modulo senza account. Se il mittente indica il proprio WhatsApp o email, il codice viene aggiornato per preparare la risposta nel canale scelto. **Scarica QR** produce un PNG; se il browser non riesce a generarlo, resta disponibile il vettoriale SVG. Il link e gli altri modi di condivisione rimangono utilizzabili.
 
 Il QR viene generato sul dispositivo dalla libreria MIT di Project Nayuki inclusa nel sito, senza servizi QR esterni. Gli inviti nuovi usano una rappresentazione compatta, senza dati di una persona già mappata. Una bozza molto lunga può superare il limite scelto per la leggibilità: in quel caso l’app propone il link. Il codice dell’invito non contiene token GitHub e non concede accesso al repository.
 
