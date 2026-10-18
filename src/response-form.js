@@ -103,3 +103,6 @@ q('#response-share').addEventListener('click', shareResponse);
 hydrateIcons(document);
 mountOfferGuidance(root);
 mountTextareaSizes(root);
+// A second invitation can be a same-document hash navigation. Reinitialize
+// from that link so a reply never keeps the previous inviter/request.
+window.addEventListener('hashchange', () => window.location.reload());

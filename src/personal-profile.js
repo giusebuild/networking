@@ -76,3 +76,4 @@ hydrateIcons(root);
 mountOfferGuidance(root);
 
 mountTextareaSizes(root);
+window.addEventListener('hashchange', () => window.location.reload());

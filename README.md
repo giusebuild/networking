@@ -4,11 +4,11 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
-## Compila, invia, aggiungi · 1.14.1
+## Compila, invia, aggiungi · 1.14.2
 
 Chi compila sceglie **Rivedi e invia**, controlla la scheda in chiaro e usa **Invia su WhatsApp**, **Invia via email**, condivisione o copia del messaggio. Il messaggio contiene nome, offerta, richieste e recapiti leggibili, seguiti dal link per aprire la scheda nell’app. L’invio si conclude nella propria app di messaggi.
 
-All’apertura, un controllo mantiene pagina e script della stessa versione anche quando una cache restituisce file di rilasci diversi. Il link ricevuto rimane intatto.
+All’apertura, un controllo mantiene pagina e script della stessa versione anche quando una cache restituisce file di rilasci diversi. Il link ricevuto rimane intatto. Aprendo un altro invito o un’altra scheda nello stesso tab, la pagina carica il nuovo destinatario e i nuovi riferimenti.
 
 Chi riceve apre il link, rivede i campi e sceglie **Aggiungi alla rete** o **Aggiorna scheda**. Da **Impostazioni → Apri una scheda ricevuta** può anche incollare tutto il messaggio: l’app riconosce il link senza ricopiare i campi. La scheda ricevuta ha priorità rispetto alla compilazione iniziale del proprio profilo. Gli appunti già presenti restano separati.
 
