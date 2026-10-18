@@ -1,3 +1,4 @@
+import { PROFILE_FIELDS, UUID, validateProfileFields, reportedContribution } from './profile-card.js';
 export const TABLES = ['members', 'people', 'contributions', 'relationships'];
 export const COLLABORATION = ['Da chiedere', 'Aperto', 'Non disponibile'];
 export const LEVELS = ['', 'Appena conosciuto', 'Conoscenza occasionale', 'Buona conoscenza', 'Rapporto stretto'];
@@ -27,14 +28,18 @@ export function validateNetwork(data) {
       check(validKey(key), 'identificatore');
       if (record === null) continue; // Tombstones preserve deletions across devices.
       check(plain(record) && record.id === key, `record ${table}`);
-      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId'] : [])];
+      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId', 'reply'] : table === 'members' ? ['profileInviteId'] : [])];
       check(Object.keys(record).every(k => allowed.includes(k)) && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
       for (const [field, value] of Object.entries(record)) {
         check(!dangerous.has(field), 'campo riservato');
         if (field === 'need') {
           check(value === null || (plain(value) && Object.keys(value).length === 4 && ['text', 'skills', 'markets', 'updatedAt'].every(k => Object.hasOwn(value, k)) && string(value.text, 1500) && value.text.trim() && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)) && ['skills', 'markets'].every(k => Array.isArray(value[k]) && value[k].length <= 40 && value[k].every(v => string(v, 80) && v.trim()))), 'richiesta');
         }
-        else if (field === 'profileRequestId') check(value === '' || (typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)), 'richiesta di compilazione');
+        else if (field === 'reply') {
+          check(plain(value) && Object.keys(value).length === 9 && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
+          try { validateProfileFields(value); } catch { check(false, 'campi risposta'); }
+        }
+        else if (['profileRequestId', 'profileInviteId'].includes(field)) check(value === '' || (typeof value === 'string' && UUID.test(value)), 'richiesta di compilazione');
         else if (['skills', 'markets', 'interests'].includes(field)) check(Array.isArray(value) && value.length <= 40 && value.every(v => string(v, 80) && v.trim()), 'tag');
         else if (field === 'memberId') check(value === null || /^\d+$/.test(value), 'membro');
         else check(string(value), `campo ${field}`);
@@ -107,7 +112,7 @@ export function mergeNetworks(base, local, remote) {
   function merge(b, l, r, path) {
     if (equal(l, r) || equal(r, b)) return l === undefined ? undefined : clone(l);
     if (equal(l, b)) return r === undefined ? undefined : clone(r);
-    if (path[0] === 'contributions' && path.at(-1) === 'need') {
+    if (path[0] === 'contributions' && ['need', 'reply'].includes(path.at(-1))) {
       conflicts.push({ path, base: b, local: l, remote: r });
       return l === undefined ? undefined : clone(l);
     }
@@ -159,8 +164,10 @@ export function viewPerson(data, person) {
   const contributions = live(data.contributions).filter(c => c.personId === person.id);
   const relationships = live(data.relationships).filter(r => r.personId === person.id);
   const self = contributions.find(c => c.authorId === person.memberId);
-  const offering = self ? [self] : contributions;
-  return { ...person, contributions, relationships, self,
+  const declarations = contributions.filter(c => c.reply).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt)).map(reportedContribution);
+  const offering = self ? [self] : [...declarations, ...contributions];
+  const latest = self ? null : contributions.filter(c => c.reply).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt))[0]?.reply;
+  return { ...person, ...Object.fromEntries(['role', 'phone', 'email', 'linkedin'].filter(k => latest?.[k]).map(k => [k, latest[k]])), contributions, declarations, relationships, self,
     offering, seeking: offering.filter(c => c.need?.text),
     needSkills: [...new Set(offering.flatMap(c => c.need?.skills || []))],
     needMarkets: [...new Set(offering.flatMap(c => c.need?.markets || []))],
@@ -197,15 +204,19 @@ export function mergeImport(current, incoming) {
 }
 const csvCell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"';
 export function exportCSV(data) {
-  const rows = [['ID persona', 'Nome', 'Presentazione breve', 'Conosciuto da', 'Da coinvolgere per', 'Competenze', 'Settori', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note', 'LinkedIn', 'Cerca', 'Competenze cercate', 'Settori cercati', 'Richiesta aggiornata', 'Telefono', 'Email', 'Testo originale']];
+  const rows = [['ID persona', 'Nome', 'Presentazione breve', 'Conosciuto da', 'Da coinvolgere per', 'Competenze', 'Settori', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note', 'LinkedIn', 'Cerca', 'Competenze cercate', 'Settori cercati', 'Richiesta aggiornata', 'Telefono', 'Email', 'Testo originale', 'Fonte']];
   for (const person of live(data.people)) {
     const p = viewPerson(data, person);
     const authors = new Set([...p.relationships.map(r => r.authorId), ...p.contributions.map(c => c.authorId)]);
     for (const authorId of authors) {
       const c = p.contributions.find(c => c.authorId === authorId), r = p.relationships.find(r => r.authorId === authorId);
-      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, p.linkedin, c?.need?.text, c?.need?.skills.join(', '), c?.need?.markets.join(', '), c?.need?.updatedAt, p.phone, p.email, c?.presentation]);
+      rows.push([p.id, person.name, person.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, person.linkedin, c?.need?.text, c?.need?.skills.join(', '), c?.need?.markets.join(', '), c?.need?.updatedAt, person.phone, person.email, c?.presentation, 'Appunti']);
+      if (c?.reply) {
+        const reported = reportedContribution(c), reply = c.reply;
+        rows.push([p.id, reply.name, reply.role, data.members[authorId]?.name, reply.help, reported.skills.join(', '), reported.markets.join(', '), '', '', '', '', '', '', '', reply.linkedin, reply.need, reported.need?.skills.join(', '), reported.need?.markets.join(', '), reply.updatedAt, reply.phone, reply.email, '', 'Scheda compilata']);
+      }
     }
-    if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin, '', '', '', '', p.phone, p.email, '']);
+    if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin, '', '', '', '', p.phone, p.email, '', '']);
   }
   return '\ufeff' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
 }

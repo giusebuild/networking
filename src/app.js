@@ -9,7 +9,7 @@ import { normalizeLinkedIn, draftFromText, suggestedTags, quickPersonFromText } 
 import { SmartTags } from './smart-tags.js';
 import { uniqueTags } from './tags.js';
 import { watchUpdates } from './updates.js';
-import { encodeFormLink, decodeFormLink, responseTarget, applyProfileResponse } from './profile-requests.js';
+import { encodeFormLink, decodeFormLink, responseTarget, responseCandidates, prepareProfileInvitation, profileInvitation, applyProfileResponse } from './profile-requests.js';
 import { normalizePhone, whatsappURL, parseVCards, personContactActions, normalizeEmail, mailtoURL } from './contacts.js';
 
 const root = document.getElementById('rete-tag');
@@ -27,7 +27,7 @@ const requestTags = new SmartTags(q('#rs-need-tags'), 'need');
 const quickOfferTags = new SmartTags(q('#quick-tags'));
 const quickRequestTags = new SmartTags(q('#quick-need-tags'), 'need');
 let quickHelpEdited = false, quickNeedEdited = false, contactChoices = [], introPhone = '';
-let pendingResponse = null, responseBase = null;
+let pendingResponse = null, responseBase = null, requestInvitation = null, requestContact = null;
 
 const data = () => sync.local;
 const person = () => data().people[selected] ? viewPerson(data(), data().people[selected]) : null;
@@ -35,7 +35,7 @@ const nameOf = id => data().members[id]?.name || 'Partecipante';
 const ownPersonId = () => data().members[user.id].personId;
 const ownContribution = p => p.contributions.find(c => c.authorId === user.id);
 const ownRelationship = p => p.relationships.find(r => r.authorId === user.id);
-const offer = p => p.self || [ownContribution(p), ...p.contributions].find(c => c?.help) || ownContribution(p) || p.contributions[0];
+const offer = p => p.self || p.declarations.find(c => c.help) || [ownContribution(p), ...p.contributions].find(c => c?.help) || ownContribution(p) || p.contributions[0];
 const sharedPerson = p => !!p.memberId || [...p.relationships, ...p.contributions].some(r => r.authorId !== user.id) || p.createdBy !== user.id;
 const date = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v;
 const owner = () => !demo && user?.login.toLowerCase() === CONFIG.owner.toLowerCase();
@@ -271,43 +271,75 @@ function applyQuickDraft() {
   offerTags.set(quickOfferTags.values, allTagPools()); requestTags.set(quickRequestTags.values, allTagPools()); offerTags.blocked = new Set(quickOfferTags.blocked); requestTags.blocked = new Set(quickRequestTags.blocked);
   q('#rs-source').hidden = !f.personPresentation.value; refreshSuggestions(); showMatches(); updateProfileLinks();
 }
-async function requestProfile() {
-  const p = person();
-  if (!p || p.memberId) return;
-  if (demo) { notice('L’invio della scheda è disponibile nella rete collegata a GitHub.'); return; }
+async function requestProfile(personId = selected) {
+  if (!personId || (personId !== 'new' && (!data().people[personId] || data().people[personId].memberId))) return;
   if (sync.pending) { showConflicts(); return; }
-  const identity = user.id, key = keyFor(p.id, user.id);
-  if (!data().contributions[key]?.profileRequestId) sync.edit(d => {
-    d.contributions[key] ||= { id: key, personId: p.id, authorId: identity, help: '', skills: [], markets: [], interests: [], collaboration: 'Da chiedere' };
-    d.contributions[key].profileRequestId = crypto.randomUUID();
-  });
-  await synchronize();
+  const identity = user.id;
+  sync.edit(d => prepareProfileInvitation(d, identity, personId));
+  if (!demo) await synchronize();
   if (user?.id !== identity) return;
-  if (sync.dirty || sync.pending || sync.status !== 'saved') { notice('Salva la rete su GitHub prima di inviare la scheda. Riprova quando la connessione è disponibile.'); return; }
-  const current = data().people[p.id], contribution = data().contributions[key];
-  if (!current || current.memberId || !contribution?.profileRequestId) { notice('La scheda è cambiata. Riaprila prima di inviare il link.'); return; }
-  const me = data().people[ownPersonId()];
-  const link = encodeFormLink({ v: 1, kind: 'invite', personId: p.id, authorId: identity, requestId: contribution.profileRequestId, facilitator: data().members[identity].name, replyPhone: me.phone || '', replyEmail: me.email || '' }, window.location.href);
-  q('#request-link').value = link; q('#request-status').textContent = '';
-  q('#request-whatsapp').hidden = !current.phone; q('#request-email').hidden = !current.email;
-  const message = `Ciao ${current.name}, quando possiamo coinvolgerti? Compila la tua scheda e rimandami la risposta: ${link}`;
-  if (current.phone) q('#request-whatsapp').href = whatsappURL(current.phone, message);
-  if (current.email) q('#request-email').href = mailtoURL(current.email, 'La tua scheda · Tramite', message);
-  showDialog('#request-dialog');
+  if (!demo && (sync.dirty || sync.pending || sync.status !== 'saved')) { notice('Salva la rete su GitHub prima di inviare la scheda. Riprova quando la connessione è disponibile.'); return; }
+  requestInvitation = profileInvitation(data(), identity, personId);
+  requestContact = personId === 'new' ? null : viewPerson(data(), data().people[personId]);
+  q('#request-title').textContent = personId === 'new' ? 'Invita una persona' : 'Invia la scheda';
+  q('#request-description').textContent = personId === 'new' ? 'Invia il modulo. La persona compila; tu apri la risposta e confermi l’aggiunta.' : 'La persona trova una bozza: può confermare, correggere o aggiungere. I tuoi appunti restano.';
+  q('#request-prefill').hidden = personId === 'new';
+  q('#request-prefill-copy').textContent = [requestInvitation.prefill.name, requestInvitation.prefill.help, requestInvitation.prefill.need && 'Cerca: ' + requestInvitation.prefill.need].filter(Boolean).join('\n');
+  q('#request-return').hidden = !!(requestInvitation.replyPhone || requestInvitation.replyEmail);
+  q('#request-reply-input').value = ''; q('#request-reply-input').setCustomValidity('');
+  q('#request-share').hidden = !navigator.share;
+  q('#request-status').textContent = demo ? 'Demo: nessun salvataggio su GitHub.' : '';
+  updateRequestLinks(); showDialog('#request-dialog');
+}
+function updateRequestLinks() {
+  if (!requestInvitation) return;
+  const link = encodeFormLink(requestInvitation, window.location.href);
+  q('#request-link').value = link;
+  const message = requestContact ? `Ciao ${requestContact.name}, ho preparato una bozza della tua scheda. Puoi confermare o aggiungere qualcosa? ${link}` : `Quando possiamo coinvolgerti e cosa cerchi? Compila la tua scheda: ${link}`;
+  q('#request-whatsapp').hidden = !requestContact?.phone; q('#request-email').hidden = !requestContact?.email;
+  if (requestContact?.phone) q('#request-whatsapp').href = whatsappURL(requestContact.phone, message);
+  if (requestContact?.email) q('#request-email').href = mailtoURL(requestContact.email, 'La tua scheda · Tramite', message);
+  return { link, message };
+}
+function setRequestReturn() {
+  if (!requestInvitation || q('#request-return').hidden) return;
+  const value = q('#request-reply-input').value.trim();
+  requestInvitation.replyPhone = value && !value.includes('@') ? normalizePhone(value) : '';
+  requestInvitation.replyEmail = value.includes('@') ? normalizeEmail(value) : '';
+  q('#request-reply-input').setCustomValidity(''); updateRequestLinks();
+}
+function rememberRequestReturn() {
+  setRequestReturn();
+  if (!requestInvitation) return;
+  const mine = data().people[ownPersonId()];
+  if (['phone', 'email'].some(k => !mine[k] && requestInvitation[k === 'phone' ? 'replyPhone' : 'replyEmail'])) {
+    sync.edit(d => { const p = d.people[ownPersonId()]; if (!p.phone && requestInvitation.replyPhone) p.phone = requestInvitation.replyPhone; if (!p.email && requestInvitation.replyEmail) p.email = requestInvitation.replyEmail; }); scheduleSync();
+  }
 }
 async function copyRequest() {
-  const input = q('#request-link');
+  rememberRequestReturn(); const input = q('#request-link');
   try { await navigator.clipboard.writeText(input.value); q('#request-status').textContent = 'Copiato. Invialo nella vostra conversazione.'; }
   catch { input.focus(); input.select(); q('#request-status').textContent = 'Copia il link selezionato.'; }
 }
+async function shareRequest() {
+  rememberRequestReturn(); const { link } = updateRequestLinks();
+  try { await navigator.share({ title: 'La tua scheda · Tramite', text: 'Quando possiamo coinvolgerti e cosa cerchi? Conferma o completa la tua scheda.', url: link }); q('#request-status').textContent = 'Link condiviso.'; }
+  catch (error) { if (error.name !== 'AbortError') { q('#request-share').hidden = true; q('#request-status').textContent = 'Usa WhatsApp, email o Copia link.'; } }
+}
+q('#request-reply-input').addEventListener('input', () => { try { setRequestReturn(); q('#request-status').textContent = ''; } catch (error) { q('#request-status').textContent = error.message; } });
+for (const id of ['request-whatsapp', 'request-email']) q('#' + id).addEventListener('click', event => { try { rememberRequestReturn(); } catch (error) { event.preventDefault(); q('#request-status').textContent = error.message; } });
 function reviewResponse() {
   if (!pendingResponse || !sync) return;
   if (mode || q('#quick-dialog').open || q('#draft-dialog').open) { notice('Salva o chiudi la scheda, poi apri la risposta dalle impostazioni.'); return; }
   if (sync.pending) { showConflicts(); return; }
   try {
     const p = responseTarget(data(), pendingResponse, user.id), r = pendingResponse;
-    responseBase = clone(data()); q('#response-target').textContent = `Risposta per la scheda di ${p.name}.`;
-    q('#response-review').innerHTML = `<h3>${esc(r.name)}</h3>${r.role ? `<p class="rs-role">${esc(r.role)}</p>` : ''}<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3><p>${esc(r.help || 'Non indicato: il testo precedente verrà svuotato.')}</p></section><section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3><p>${esc(r.need || 'Non indicato: la richiesta precedente verrà rimossa.')}</p></section><p class="rs-response-contacts">${[r.email, r.phone, r.linkedin].filter(Boolean).map(esc).join('<br>') || 'Nessun nuovo recapito.'}</p>`;
+    const candidates = r.personId === 'new' ? responseCandidates(data(), r) : [];
+    q('#response-existing-row').hidden = !candidates.length;
+    q('#response-existing').innerHTML = '<option value="">Aggiungi una nuova persona</option>' + candidates.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.exact ? ' · stesso recapito' : ' · stesso nome'}</option>`).join('');
+    if (candidates.filter(c => c.exact).length === 1) q('#response-existing').value = candidates.find(c => c.exact).id;
+    responseBase = clone(data()); q('#response-target').textContent = p ? `Risposta per la scheda di ${p.name}. I tuoi appunti restano.` : 'Nuova persona per la tua rete. Verrà aggiunta solo dopo la conferma.';
+    q('#response-review').innerHTML = `<h3>${esc(r.name)}</h3>${r.role ? `<p class="rs-role">${esc(r.role)}</p>` : ''}<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3><p>${esc(r.help || 'Non indicato. I tuoi appunti restano.')}</p></section><section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3><p>${esc(r.need || 'Non indicato. Le richieste già annotate restano.')}</p></section><p class="rs-response-contacts">${[r.email, r.phone, r.linkedin].filter(Boolean).map(esc).join('<br>') || 'Nessun nuovo recapito.'}</p>`;
     q('#response-review-error').textContent = ''; showDialog('#response-dialog');
   } catch (error) { pendingResponse = responseBase = null; notice(error.message); }
 }
@@ -359,13 +391,13 @@ function saveQuickPerson(e) {
 }
 function resetUI() {
   selected = null; mode = null; formBase = null; editingId = null; search = '';
-  pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null; pendingResponse = null; responseBase = null;
+  pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null; pendingResponse = null; responseBase = null; requestInvitation = requestContact = null;
   quickDraft = null; quickNameEdited = false; quickHomonym = false;
   filters = emptyFilters();
   q('#rs-search').value = '';
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
-  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error']) q(selector).textContent = '';
-  q('#request-link').value = ''; q('#paste-response-form').reset();
+  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error', '#request-prefill-copy', '#request-description']) q(selector).textContent = '';
+  q('#request-link').value = ''; q('#request-reply-input').value = ''; q('#response-existing').replaceChildren(); q('#paste-response-form').reset();
   for (const id of ['request-whatsapp', 'request-email']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
   q('#intro-message').value = '';
   for (const id of ['rs-linkedin-preview', 'quick-linkedin-preview', 'draft-linkedin-preview']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
@@ -401,7 +433,7 @@ async function requestLeave(forget = false) {
   else if (forget) confirm('Dimenticare il dispositivo?', 'Rimuove token e copia locale da questo browser. I dati sincronizzati restano nel repository.', action);
   else await action();
 }
-const request = p => p.seeking.find(c => c.authorId === user.id) || p.seeking[0];
+const request = p => p.seeking.find(c => c.reported) || p.seeking.find(c => c.authorId === user.id) || p.seeking[0];
 const tagLine = values => uniqueTags(values).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('');
 function cardTags(values) {
   const tags = uniqueTags(values);
@@ -431,13 +463,13 @@ function detail(p) {
   const statusValues = [...new Set(statuses.map(c => c.collaboration))];
   const availability = statusValues.length > 1 ? 'Da verificare' : statusValues[0] === 'Aperto' ? 'Disponibile' : statusValues.length ? 'Non ora' : '';
   const attribution = statuses.map(c => `${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${nameOf(c.authorId)}`).join(' · ');
-  let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
+  let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? p.declarations.length ? 'I tuoi appunti' : 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
   html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}${availability ? `<span class="rs-availability" title="${esc(attribution)}" aria-label="${esc(availability + '. ' + attribution)}"><span class="rs-status-dot"></span>${availability}</span>` : ''}</div></div></div>`;
   html += `<section class="rs-reach"><h3>${own ? 'Come contattarti' : 'Come contattarlo'}</h3>${contactActionsHTML(p)}</section>`;
-  const source = c => c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
-  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine([...new Set([...p.skills, ...p.markets])])}${editable ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
+  const source = c => c.reported ? 'Dalla scheda compilata' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
+  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
   const n = request(p);
-  if (n || editable) html += `<section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personNeed"><span>${esc(n?.need.text || 'Un aiuto, una collaborazione, un confronto…')}</span>${icon('pencil')}</button>` : n ? `<p>${esc(n.need.text)}</p>` : ''}${n ? `<span class="rs-source">${esc(source(n))} · ${new Date(n.need.updatedAt).toLocaleDateString('it-IT')}</span><div class="rs-tag-list">${tagLine([...new Set([...n.need.skills, ...n.need.markets])])}</div>` : ''}</section>`;
+  if (n || editable) html += `<section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3>${editable && !n?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personNeed"><span>${esc(n?.need.text || 'Un aiuto, una collaborazione, un confronto…')}</span>${icon('pencil')}</button>` : n ? `<p>${esc(n.need.text)}</p>` : ''}${n ? `<span class="rs-source">${esc(source(n))} · ${new Date(n.need.updatedAt).toLocaleDateString('it-IT')}</span><div class="rs-tag-list">${tagLine([...new Set([...n.need.skills, ...n.need.markets])])}</div>` : ''}</section>`;
   if (!own) {
     html += '<section class="rs-connections"><h3>Chi lo conosce</h3>';
     for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
@@ -450,13 +482,13 @@ function detail(p) {
     html += '</section>';
   }
   if (!p.memberId && (mine || ownContribution(p) || p.createdBy === user.id)) html += `<button type="button" class="rs-btn rs-request-profile" data-action="request-profile">${icon('send')}Fai compilare la scheda</button>`;
-  const others = p.contributions.filter(c => c !== o && (c.help || c.need?.text || c.presentation));
+  const others = p.contributions.filter(c => c !== o && (c.help || c.need?.text || c.presentation || c.skills.length || c.markets.length));
   if (p.interests.length || others.length || p.phone || availability || o?.presentation) {
     html += '<details class="rs-person-more"><summary>Altri dettagli' + icon('chevron-right') + '</summary><div class="rs-more-content">';
     if (o?.presentation) html += `<details class="rs-original"><summary>Testo originale</summary><p>${esc(o.presentation)}</p></details>`;
     if (availability) html += `<div class="rs-tag-group"><span class="rs-tag-label">Collaborazioni · ${esc(availability)}</span><span class="rs-source">${esc(attribution)}</span></div>`;
     for (const [key, label] of [['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</div></div>`;
-    if (others.length) html += `<div class="rs-observation">${others.map(c => `<p>${esc(c.help)}</p>${c.need?.text ? `<p><strong>Cerca:</strong> ${esc(c.need.text)}</p>` : ''}${c.presentation ? `<details class="rs-original"><summary>Testo originale</summary><p>${esc(c.presentation)}</p></details>` : ''}<span class="rs-source">${esc(nameOf(c.authorId))}</span>`).join('')}</div>`;
+    if (others.length) html += `<div class="rs-observation">${others.map(c => `<section class="rs-observed"><strong>${c.authorId === user.id ? 'I tuoi appunti' : esc(nameOf(c.authorId))}</strong><p>${esc(c.help)}</p><div class="rs-tag-list">${tagLine([...c.skills, ...c.markets])}</div>${c.need?.text ? `<p><strong>Cerca:</strong> ${esc(c.need.text)}</p>` : ''}${c.presentation ? `<details class="rs-original"><summary>Testo originale</summary><p>${esc(c.presentation)}</p></details>` : ''}${c.authorId === user.id ? '<button type="button" class="rs-text-btn" data-action="edit">Modifica i tuoi appunti</button>' : ''}</section>`).join('')}</div>`;
     if (p.phone) html += `<div class="rs-tag-group"><span class="rs-tag-label">Telefono</span><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`;
     html += '</div></details>';
   }
@@ -553,9 +585,9 @@ function openForm(kind) {
   f.personName.required = !relationOnly; f.personName.disabled = !own && !!p?.memberId;
   f.personEmail.disabled = !own && !!p?.memberId; f.personEmail.setCustomValidity('');
   f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personPhone.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity(''); f.personPhone.setCustomValidity('');
-  q('#rs-form-source').textContent = own ? 'Il tuo profilo, visibile al gruppo.' : 'Visibile al gruppo · il tuo contributo.';
+  q('#rs-form-source').textContent = own ? 'Il tuo profilo, visibile al gruppo.' : p?.declarations.length ? 'I tuoi appunti. La risposta ricevuta resta separata.' : 'Visibile al gruppo · il tuo contributo.';
   const c = p ? ownContribution(p) : null, r = p ? ownRelationship(p) : null;
-  if (p) { f.personName.value = p.name; f.personRole.value = p.role; f.personHelp.value = c?.help || ''; f.personLinkedin.value = p.linkedin || ''; f.personPhone.value = p.phone || ''; f.personEmail.value = p.email || ''; f.personPresentation.value = c?.presentation || ''; f.personNeed.value = c?.need?.text || ''; }
+  if (p) { const stored = data().people[p.id]; f.personName.value = stored.name; f.personRole.value = stored.role; f.personHelp.value = c?.help || ''; f.personLinkedin.value = stored.linkedin || ''; f.personPhone.value = stored.phone || ''; f.personEmail.value = stored.email || ''; f.personPresentation.value = c?.presentation || ''; f.personNeed.value = c?.need?.text || ''; }
   q('#rs-source').hidden = relationOnly || !c?.presentation; q('#rs-source').open = false;
   f.personCollaboration.value = c?.collaboration || 'Da chiedere';
   for (const [field, key] of [['Context', 'context'], ['Since', 'since'], ['Level', 'level'], ['Last', 'last'], ['Note', 'note']]) f['person' + field].value = r?.[key] || '';
@@ -613,7 +645,7 @@ function saveForm(e) {
     selected = id; clearFilters(); closeForm(); render(); focusDetail(); scheduleSync();
   } catch (e) { notice(e.message); }
 }
-const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account', need: 'Cerca', phone: 'Telefono' };
+const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account', need: 'Cerca', phone: 'Telefono', email: 'Email', reply: 'Scheda compilata', profileRequestId: 'Invito alla scheda', profileInviteId: 'Link per nuove persone' };
 function conflictValue(v) { return v === null || v === undefined ? 'Rimosso' : Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? (v.text ? `${v.text} · ${[...(v.skills || []), ...(v.markets || [])].join(', ')}` : JSON.stringify(v, null, 2)) : String(v) || 'Vuoto'; }
 function showConflicts() {
   const p = sync.pending; if (!p) return;
@@ -752,15 +784,17 @@ root.addEventListener('click', async e => {
     if (b.dataset.context) { const f = q('#rs-form').elements; f.personContext.value = b.dataset.context + ' · '; f.personContext.focus(); return; }
     const a = b.dataset.action;
     if (a === 'app-update') { await applyAppUpdate(); return; }
-    if (a === 'request-profile') { await requestProfile(); return; }
+    if (a === 'request-profile' || a === 'request-new-profile') { await requestProfile(a === 'request-new-profile' ? 'new' : selected); return; }
+    if (a === 'share-request') { await shareRequest(); return; }
     if (a === 'copy-request') { await copyRequest(); return; }
     if (a === 'paste-response') { q('#settings-dialog').close(); if (pendingResponse) reviewResponse(); else { q('#paste-response-error').textContent = ''; showDialog('#paste-response-dialog'); } return; }
     if (a === 'discard-response') { clearResponse(); return; }
     if (a === 'accept-response') {
       try {
-        responseTarget(data(), pendingResponse, user.id);
-        const response = pendingResponse, id = response.personId;
-        sync.edit(d => applyProfileResponse(d, response, user.id), responseBase);
+        const response = pendingResponse, targetId = q('#response-existing-row').hidden ? '' : q('#response-existing').value;
+        responseTarget(data(), response, user.id, targetId);
+        let id;
+        sync.edit(d => { id = applyProfileResponse(d, response, user.id, undefined, targetId); }, responseBase);
         clearResponse(); selected = id; clearFilters(); render(); focusDetail(); scheduleSync();
       } catch (error) { q('#response-review-error').textContent = error.message; }
       return;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixture.mjs';
-import { clone, validateNetwork, findPeople, mergeNetworks, exportCSV } from '../src/model.js';
+import { clone, validateNetwork, findPeople, mergeNetworks, exportCSV, viewPerson } from '../src/model.js';
 import { normalizeEmail, mailtoURL, personContactActions } from '../src/contacts.js';
 import { draftFromText, needTags } from '../src/profile.js';
 import { encodeFormLink, decodeFormLink, applyProfileResponse, responseTarget } from '../src/profile-requests.js';
@@ -60,13 +60,15 @@ test('malformed, oversized, unknown or dangerous response fields are refused', (
   for (const r of [{ ...response(), requestId: '-'.repeat(36) }, { ...response(), authorId: 1 }, { ...response(), linkedin: 'javascript:alert(1)' }, { ...response(), help: 'x'.repeat(1501) }, { ...response(), members: {} }]) assert.throws(() => encodeFormLink(r, 'https://example.test/'));
   for (const raw of ['#response=notjson', '#response=' + 'a'.repeat(28000), '#response=eyJfX3Byb3RvX18iOnt9fQ']) assert.throws(() => decodeFormLink(raw, 'response'));
 });
-test('only the matching request author can confirm once, leaving other knowledge intact', () => {
+test('only the matching author can confirm once, preserving their observations and other knowledge', () => {
   const d = requested(), other = clone(d.contributions['contact:2']), relation = clone(d.relationships);
   d.people.contact.phone = '+447700900111'; d.contributions['contact:1'].presentation = 'Fonte precedente';
   assert.throws(() => responseTarget(d, response(), '2')); assert.throws(() => responseTarget(d, { ...response(), requestId: '1341667f-72b1-44ec-b644-1e854d49936d' }, '1'));
+  const before = clone(d.contributions['contact:1']);
   applyProfileResponse(d, response(), '1'); validateNetwork(d);
   assert.equal(d.people.contact.phone, '+447700900111'); assert.equal(d.people.contact.role, 'Designer'); assert.equal(d.people.contact.email, 'persona@example.test');
-  assert.equal(d.contributions['contact:1'].presentation, 'Fonte precedente'); assert.ok(d.contributions['contact:1'].skills.includes('Siti web')); assert.ok(d.contributions['contact:1'].need.skills.includes('Video'));
+  for (const k of Object.keys(before).filter(k => k !== 'profileRequestId')) assert.deepEqual(d.contributions['contact:1'][k], before[k]);
+  const p = viewPerson(d, d.people.contact); assert.ok(p.skills.includes('Siti web')); assert.ok(p.needSkills.includes('Video')); assert.ok(p.declarations[0].reported);
   assert.deepEqual(d.contributions['contact:2'], other); assert.deepEqual(d.relationships, relation);
   assert.throws(() => applyProfileResponse(d, response(), '1'));
 });
@@ -75,10 +77,10 @@ test('a removed contact, participant profile or replaced request cannot be updat
   const m = requested(); m.people.contact.memberId = '2'; assert.throws(() => responseTarget(m, response(), '1'));
   const b = requested(); b.contributions['contact:1'].profileRequestId = ''; assert.throws(() => responseTarget(b, response(), '1'));
 });
-test('response confirmation uses a snapshot: concurrent offering changes require a decision', () => {
+test('a response and a concurrent observation merge without replacing either', () => {
   const base = requested(), local = clone(base), remote = clone(base);
   applyProfileResponse(local, response(), '1'); remote.contributions['contact:1'].help = 'Correzione concorrente'; remote.relationships['contact:2'].note = 'Nuova nota';
   const merged = mergeNetworks(base, local, remote);
-  assert.ok(merged.conflicts.some(c => c.path.join('.') === 'contributions.contact:1.help'));
+  assert.equal(merged.conflicts.length, 0); assert.equal(merged.data.contributions['contact:1'].help, 'Correzione concorrente'); assert.equal(merged.data.contributions['contact:1'].reply.help, response().help);
   assert.equal(merged.data.relationships['contact:2'].note, 'Nuova nota');
 });

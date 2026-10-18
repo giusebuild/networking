@@ -10,7 +10,7 @@ export function normalizePhone(value) {
 }
 export function whatsappURL(phone, text = '') {
   const number = normalizePhone(phone); if (!number) return '';
-  return `https://wa.me/${number.slice(1)}${text ? `?text=${encodeURIComponent(String(text).slice(0, 3000))}` : ''}`;
+  return `https://wa.me/${number.slice(1)}${text ? `?text=${encodeURIComponent(String(text))}` : ''}`;
 }
 export function normalizeEmail(value) {
   const text = String(value || '').trim().replace(/^mailto:/i, '');
@@ -20,7 +20,7 @@ export function normalizeEmail(value) {
 }
 export function mailtoURL(email, subject = 'Possibile collaborazione', body = '') {
   const address = normalizeEmail(email); if (!address) return '';
-  const query = new URLSearchParams({ subject: subject.replace(/[\r\n]/g, ' ').slice(0, 200), body: String(body).slice(0, 12000) });
+  const query = new URLSearchParams({ subject: subject.replace(/[\r\n]/g, ' ').slice(0, 200), body: String(body) });
   return `mailto:${encodeURIComponent(address).replace('%40', '@')}?${query}`;
 }
 const unescape = text => text.replace(/\\[nN]/g, '\n').replace(/\\([,;\\])/g, '$1');
