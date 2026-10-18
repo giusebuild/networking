@@ -7,6 +7,7 @@ import { icon, hydrateIcons } from './icons.js';
 import { demoNetwork } from './demo.js';
 import { normalizeLinkedIn, draftFromText, suggestedTags, quickPersonFromText } from './profile.js';
 import { SmartTags } from './smart-tags.js';
+import { uniqueTags } from './tags.js';
 import { normalizePhone, whatsappURL, parseVCards } from './contacts.js';
 
 const root = document.getElementById('rete-tag');
@@ -276,12 +277,16 @@ function requestLeave(forget = false) {
   else action();
 }
 const request = p => p.seeking.find(c => c.authorId === user.id) || p.seeking[0];
-const tagLine = values => values.map(t => `<span class="rs-tag">${esc(t)}</span>`).join('');
+const tagLine = values => uniqueTags(values).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('');
+function cardTags(values) {
+  const tags = uniqueTags(values);
+  return tags.length ? `<span class="rs-row-tags">${tagLine(tags.slice(0, 3))}${tags.length > 3 ? `<span class="rs-tag rs-tag-count">+${tags.length - 3}</span>` : ''}</span>` : '';
+}
 function row(p) {
   const o = offer(p), n = request(p), mine = ownRelationship(p);
   const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
-  const tags = [...new Set(filters.intent === 'need' ? [...p.needSkills, ...p.needMarkets] : [...p.skills, ...p.markets])];
-  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span>${o?.help ? `<span class="rs-card-offer"><span class="rs-intent-label">Può aiutare</span><span class="rs-help-copy">${esc(o.help)}</span></span>` : ''}${n ? `<span class="rs-card-need"><span class="rs-intent-label">Cerca</span><span class="rs-help-copy">${esc(n.need.text)}</span></span>` : ''}${!o?.help && !n ? '<span class="rs-help-copy rs-placeholder">Una conoscenza da scoprire.</span>' : ''}${tags.length ? `<span class="rs-row-tags">${tagLine(tags.slice(0, 3))}${tags.length > 3 ? `<span class="rs-tag rs-tag-count">+${tags.length - 3}</span>` : ''}</span>` : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>`;
+  const offeredTags = cardTags([...p.skills, ...p.markets]), neededTags = n ? cardTags([...n.need.skills, ...n.need.markets]) : '';
+  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span>${o?.help || offeredTags ? `<span class="rs-card-offer"><span class="rs-intent-label">Può aiutare</span>${o?.help ? `<span class="rs-help-copy">${esc(o.help)}</span>` : ''}${offeredTags}</span>` : ''}${n ? `<span class="rs-card-need"><span class="rs-intent-label">Cerca</span><span class="rs-help-copy">${esc(n.need.text)}</span>${neededTags}</span>` : ''}${!o?.help && !offeredTags && !n ? '<span class="rs-help-copy rs-placeholder">Una conoscenza da scoprire.</span>' : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>`;
 }
 function detail(p) {
   if (!p) return '';

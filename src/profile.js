@@ -1,5 +1,5 @@
 const norm = text => String(text ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const unique = values => [...new Map(values.map(x => x.trim()).filter(Boolean).map(x => [norm(x), x])).values()].slice(0, 40);
+const unique = (values, limit = 40) => [...new Map(values.map(x => x.trim()).filter(Boolean).map(x => [norm(x), x])).values()].slice(0, limit);
 export function normalizeLinkedIn(value) {
   const text = String(value || '').trim();
   if (!text) return '';
@@ -27,6 +27,7 @@ const aliases = {
   'Marketing': ['marketer'], 'Formazione': ['formatore'],
   'Siti web': ['sito web', 'siti', 'website', 'web design'], 'Prenotazioni': ['prenotazione', 'booking'],
   'Video': ['videomaker', 'videomaking', 'video maker'], 'Fotografia': ['fotografo', 'fotografa'],
+  'Collaborazioni': ['collaborazione'],
 };
 aliases['Sanità'].push('studi medici', 'studio medico', 'cliniche', 'clinica');
 const requestStart = /^(?:(?:sto|sta|stiamo)\s+cercando|cerc(?:o|a|hiamo|ano)|(?:ho|ha|abbiamo)\s+bisogno|(?:mi|gli|ci)\s+serv(?:e|ono)|bisogno|richiesta)\b/i;
@@ -45,14 +46,15 @@ export function suggestedTags(text, extra = {}) {
   const personal = clauses.filter(x => /interess|passion|hobby|tempo libero|mi piace|ama\b|vorrei|imparare|sto studiando|mi piacerebbe/.test(x));
   const professional = clauses.filter(x => !personal.includes(x) && !/\bnon\b|\bno\b|senza competenz/.test(x));
   return Object.fromEntries(Object.entries(CATALOG).map(([key, values]) => {
-    const pool = unique([...values, ...(extra[key] || [])]);
+    const pool = unique([...values, ...(extra[key] || [])], Infinity);
     const source = key === 'interests' ? personal : professional.filter(x => !requestStart.test(x));
-    return [key, pool.filter(value => source.some(line => mentions(line, value)))];
+    return [key, pool.filter(value => source.some(line => mentions(line, value))).slice(0, 40)];
   }));
 }
 export function needTags(text, extra = {}) {
   const stripped = String(text || '').replace(/\b(?:vorrei|imparare|sto studiando|mi piacerebbe|interesse|appassionat[oa])\b/gi, '').replace(/(^|\n)\s*(?:(?:sto|sta|stiamo)\s+cercando|cerc(?:o|a|hiamo|ano)|(?:ho|ha|abbiamo)\s+bisogno|(?:mi|gli|ci)\s+serv(?:e|ono))\s*/gi, '');
-  const tags = suggestedTags(stripped, extra);
+  // Requests can name a collaboration rather than a specific profession.
+  const tags = suggestedTags(stripped, { ...extra, skills: [...(extra.skills || []), 'Collaborazioni'] });
   return { skills: tags.skills, markets: tags.markets, interests: [] };
 }
 // A local, conservative draft from text supplied by the user. No profile fetching,
