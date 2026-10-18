@@ -28,7 +28,7 @@ export function validateNetwork(data) {
       check(validKey(key), 'identificatore');
       if (record === null) continue; // Tombstones preserve deletions across devices.
       check(plain(record) && record.id === key, `record ${table}`);
-      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId', 'reply'] : table === 'members' ? ['profileInviteId'] : [])];
+      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId', 'reply'] : table === 'members' ? ['profileInviteId', 'profileCardId'] : [])];
       check(Object.keys(record).every(k => allowed.includes(k)) && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
       for (const [field, value] of Object.entries(record)) {
         check(!dangerous.has(field), 'campo riservato');
@@ -36,10 +36,10 @@ export function validateNetwork(data) {
           check(value === null || (plain(value) && Object.keys(value).length === 4 && ['text', 'skills', 'markets', 'updatedAt'].every(k => Object.hasOwn(value, k)) && string(value.text, 1500) && value.text.trim() && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)) && ['skills', 'markets'].every(k => Array.isArray(value[k]) && value[k].length <= 40 && value[k].every(v => string(v, 80) && v.trim()))), 'richiesta');
         }
         else if (field === 'reply') {
-          check(plain(value) && Object.keys(value).length === 9 && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
+          check(plain(value) && Object.keys(value).length === (Object.hasOwn(value, 'cardId') ? 10 : 9) && (!Object.hasOwn(value, 'cardId') || (typeof value.cardId === 'string' && UUID.test(value.cardId))) && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
           try { validateProfileFields(value); } catch { check(false, 'campi risposta'); }
         }
-        else if (['profileRequestId', 'profileInviteId'].includes(field)) check(value === '' || (typeof value === 'string' && UUID.test(value)), 'richiesta di compilazione');
+        else if (['profileRequestId', 'profileInviteId', 'profileCardId'].includes(field)) check(value === '' || (typeof value === 'string' && UUID.test(value)), 'richiesta di compilazione');
         else if (['skills', 'markets', 'interests'].includes(field)) check(Array.isArray(value) && value.length <= 40 && value.every(v => string(v, 80) && v.trim()), 'tag');
         else if (field === 'memberId') check(value === null || /^\d+$/.test(value), 'membro');
         else check(string(value), `campo ${field}`);

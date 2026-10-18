@@ -23,30 +23,37 @@ export function validateInvitation(value) {
   return value;
 }
 export function validateResponse(value) {
-  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 2 ? ['responseId'] : [])]); context(value);
+  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 2 ? ['responseId'] : []), ...(Object.hasOwn(value || {}, 'cardId') ? ['cardId'] : [])]); context(value);
   if (value.kind !== 'response' || (value.v === 2 && (typeof value.responseId !== 'string' || !UUID.test(value.responseId)))) fail();
   validateProfileFields(value);
+  if (Object.hasOwn(value, 'cardId') && (typeof value.cardId !== 'string' || !UUID.test(value.cardId))) fail();
   return value;
 }
 export function encodeFormLink(value, baseURL) {
   const invite = value.kind === 'invite'; (invite ? validateInvitation : validateResponse)(value);
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const compact = invite && value.v === 2 && value.personId === 'new' && Object.values(value.prefill).every(v => v === '');
+  const payload = compact ? [2, value.authorId, value.requestId, value.facilitator, value.replyPhone, value.replyEmail] : value;
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
   const encoded = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
   const url = new URL(invite ? './scheda.html' : './', baseURL);
-  url.search = ''; url.hash = `${invite ? 'invite' : 'response'}=${encoded}`;
+  url.search = ''; url.hash = `${compact ? 'i' : invite ? 'invite' : 'response'}=${encoded}`;
   return url.href;
 }
 export function decodeFormLink(link, kind) {
   if (!['invite', 'response'].includes(kind) || typeof link !== 'string' || link.length > 28000) fail();
   let hash;
   try { hash = link.startsWith('#') ? link : new URL(link).hash; } catch { fail(); }
-  const match = hash.match(new RegExp(`^#${kind}=([A-Za-z0-9_-]{1,26000})$`));
+  const match = hash.match(new RegExp(`^#${kind === 'invite' ? '(invite|i)' : '(response)'}=([A-Za-z0-9_-]{1,26000})$`));
   if (!match) fail();
   let value;
   try {
-    const raw = atob(match[1].replaceAll('-', '+').replaceAll('_', '/'));
+    const raw = atob(match[2].replaceAll('-', '+').replaceAll('_', '/'));
     value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(raw, x => x.charCodeAt(0))));
   } catch { fail(); }
+  if (match[1] === 'i') {
+    if (!Array.isArray(value) || value.length !== 6 || value[0] !== 2) fail();
+    value = { v: 2, kind: 'invite', personId: 'new', authorId: value[1], requestId: value[2], facilitator: value[3], replyPhone: value[4], replyEmail: value[5], prefill: Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, ''])) };
+  }
   return kind === 'invite' ? validateInvitation(value) : validateResponse(value);
 }
 export function prepareProfileInvitation(data, userId, personId = 'new') {
@@ -75,7 +82,7 @@ export function responseCandidates(data, response) {
   const p = cleanProfile(response), normalizers = { phone: normalizePhone, email: normalizeEmail, linkedin: normalizeLinkedIn };
   return live(data.people).filter(person => !person.memberId).map(person => {
     const v = viewPerson(data, person);
-    const exact = Object.entries(normalizers).some(([k, normalize]) => p[k] && [person[k], v[k]].filter(Boolean).some(value => normalize(value).toLowerCase() === p[k].toLowerCase()));
+    const exact = (response.cardId && live(data.contributions).some(c => c.personId === person.id && c.reply?.cardId === response.cardId)) || Object.entries(normalizers).some(([k, normalize]) => p[k] && [person[k], v[k]].filter(Boolean).some(value => normalize(value).toLowerCase() === p[k].toLowerCase()));
     return { ...person, exact };
   }).filter(person => person.exact || norm(person.name.trim()) === norm(p.name));
 }
@@ -111,7 +118,7 @@ export function applyProfileResponse(data, response, userId, now = new Date().to
   if (response.personId === 'new' && !data.relationships[key]) data.relationships[key] = { id: key, personId: person.id, authorId: userId, context: '', since: '', level: '', last: '', note: '' };
   const c = data.contributions[key] ||= { id: key, personId: person.id, authorId: userId, help: '', skills: [], markets: [], interests: [], collaboration: 'Da chiedere' };
   // The response never replaces observations, custom tags, needs or known details.
-  c.reply = { ...fields, responseId: response.responseId || response.requestId, updatedAt: now };
+  c.reply = { ...fields, ...(response.cardId ? { cardId: response.cardId } : {}), responseId: response.responseId || response.requestId, updatedAt: now };
   if (response.personId !== 'new') c.profileRequestId = '';
   for (const k of ['role', 'phone', 'email', 'linkedin']) if (!person[k] && fields[k]) person[k] = fields[k];
   return person.id;

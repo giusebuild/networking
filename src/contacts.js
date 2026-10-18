@@ -47,7 +47,13 @@ export function parseVCards(text) {
 
 // Public profile links can be opened directly. Private numbers keep the existing
 // path through the person who knows the contact.
-export function personContactActions(person, viewerId) {
+export function contactMessage(person, { intent = '', help = '', need = '' } = {}) {
+  const excerpt = value => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 350);
+  if (intent === 'offer' && excerpt(help)) return `Ciao ${person.name}, vorrei coinvolgerti per una possibile collaborazione su questo: «${excerpt(help)}». Possiamo parlarne?`;
+  if (intent === 'need' && excerpt(need)) return `Ciao ${person.name}, ho letto la tua richiesta: «${excerpt(need)}». Possiamo sentirci per capire se posso aiutarti?`;
+  return `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`;
+}
+export function personContactActions(person, viewerId, context = {}) {
   const mine = person.relationships?.some(r => r.authorId === viewerId);
   const direct = mine || !!person.memberId || person.createdBy === viewerId;
   const actions = [];
@@ -55,8 +61,9 @@ export function personContactActions(person, viewerId) {
     const referent = person.relationships?.find(r => r.authorId !== viewerId);
     if (referent) actions.push({ type: 'introduction', authorId: referent.authorId });
   }
-  if (direct && person.phone) actions.push({ type: 'whatsapp', href: whatsappURL(person.phone, `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`) });
-  if (direct && person.email) actions.push({ type: 'email', href: mailtoURL(person.email, 'Possibile collaborazione', `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`) });
+  const message = contactMessage(person, context);
+  if (direct && person.phone) actions.push({ type: 'whatsapp', href: whatsappURL(person.phone, message) });
+  if (direct && person.email) actions.push({ type: 'email', href: mailtoURL(person.email, context.intent === 'need' ? 'La tua richiesta' : 'Possibile collaborazione', message) });
   if (person.linkedin) actions.push({ type: 'linkedin', href: normalizeLinkedIn(person.linkedin) });
   if (!actions.length) actions.push({ type: !person.memberId || person.memberId === viewerId ? 'add-contact' : 'add-relationship' });
   return actions;

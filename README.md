@@ -8,7 +8,7 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **Aggiungi** apre una scheda breve: nome, **Cosa sa fare?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
 
-La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** filtrano la stessa rete e mostrano nelle card soltanto il rispettivo blocco. Aprendo una persona si vede sempre la scheda completa. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
+La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** sono filtri della stessa rete: un tap attiva, un secondo tap sul filtro selezionato torna alla rete completa. Non esiste una sezione Tutti separata. La vista completa mantiene anche le conoscenze senza contributi o bisogni ancora descritti. Nei risultati filtrati le card mostrano soltanto il rispettivo blocco. Aprendo una persona si vede sempre la scheda completa. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
 
 Le informazioni dei conoscenti conservano l’autore. Le dichiarazioni di un partecipante hanno precedenza per la ricerca sul suo profilo. Nomi uguali non uniscono automaticamente persone: scegli una scheda già presente per aggiungere la tua relazione con **Lo conosco anch’io**. Il collegamento al titolare di una scheda creata prima del suo accesso non è automatico.
 
@@ -43,7 +43,7 @@ Dal menu **Il team**, il proprietario trova l’accesso agli inviti e un link al
 
 Si importano soltanto nome e numeri leggibili; con più contatti scegli quello da usare, rivedi la scheda e confermi. Il limite del file è 900 KB. L’importazione non inventa contributi o richieste e non aggiorna automaticamente la rubrica del telefono. Il numero scelto resta modificabile: usa il prefisso internazionale, per esempio `+39`.
 
-**WhatsApp** apre la conversazione con un messaggio precompilato, da rivedere e inviare personalmente. Per un’introduzione il destinatario è il facilitatore scelto; se il suo numero non è disponibile, resta **Copia messaggio**. Non ci sono invii automatici, API WhatsApp o chat interne. Il collegamento WhatsApp richiede un numero effettivamente registrato al servizio.
+**WhatsApp** apre la conversazione con un messaggio precompilato, da rivedere e inviare personalmente. Con Offre il messaggio propone di coinvolgere la persona sul contributo indicato; con Cerca riprende la richiesta per capire come aiutare. Anche l’email e la richiesta al facilitatore seguono il filtro scelto. Senza filtri resta un messaggio di collaborazione generale. Per un’introduzione il destinatario è il facilitatore scelto; se il suo numero non è disponibile, resta **Copia messaggio**. Non ci sono invii automatici, API WhatsApp o chat interne. Il collegamento WhatsApp richiede un numero effettivamente registrato al servizio.
 
 Le card e le schede mostrano subito **WhatsApp**, **Email** e **LinkedIn**, quando disponibili. Basta anche una sola email; telefono e profilo social restano facoltativi. Per un contatto raggiungibile tramite un collaboratore, **Chiedi un’intro** apre la richiesta al facilitatore. **Aggiungi recapiti** apre il modulo se mancano i canali: si può comunque creare una scheda con il solo nome.
 
@@ -68,6 +68,26 @@ Chi riceve il link non ha bisogno di GitHub. Il modulo non carica l’archivio p
 Aprire una risposta non salva nulla. La conferma controlla autore e invito; la stessa risposta non si applica di nuovo, e una scheda eliminata o diventata profilo di un partecipante non si aggiorna così. Le osservazioni e una risposta arrivata nel frattempo si uniscono senza cancellarsi; due diverse risposte in conflitto si confrontano come schede complete. I vecchi link restano leggibili e usano le stesse regole conservative.
 
 La risposta non verifica l’identità del compilatore: confermala riconoscendo la persona nella conversazione. I link contengono i dati condivisi nel frammento dell’URL e non sono cifrati: mandali solo alla persona interessata, non pubblicarli. Il codice pubblico non incorpora i dati compilati.
+
+## QR d’invito
+
+**Invita una persona** mostra il QR con l’icona di Tramite al centro. Basta inquadrarlo per aprire il modulo senza account. Se il mittente indica il proprio WhatsApp o email, il codice viene aggiornato per preparare la risposta nel canale scelto. **Scarica QR** produce un PNG; se il browser non riesce a generarlo, resta disponibile il vettoriale SVG. Il link e gli altri modi di condivisione rimangono utilizzabili.
+
+Il QR viene generato sul dispositivo dalla libreria MIT di Project Nayuki inclusa nel sito, senza servizi QR esterni. Gli inviti nuovi usano una rappresentazione compatta, senza dati di una persona già mappata. Una bozza molto lunga può superare il limite scelto per la leggibilità: in quel caso l’app propone il link. Il codice dell’invito non contiene token GitHub e non concede accesso al repository.
+
+## Una scheda da riutilizzare
+
+**[La tua scheda](https://giusebuild.github.io/networking/profilo.html)** si crea senza GitHub: nome, quando coinvolgerti, cosa cerchi, recapiti facoltativi. Non è un curriculum, un feed o un elenco pubblico di iscritti. Una volta pronta, si condivide lo stesso link con più persone.
+
+Nel modulo ricevuto, **Ricorda la mia scheda su questo dispositivo** conserva i campi che il compilatore conferma. Un successivo invito sullo stesso browser ritrova la scheda pronta da rivedere e inviare. Una bozza che sembra riferirsi a un’altra persona resta separata e non sostituisce automaticamente la scheda personale; è disponibile Usa la mia scheda salvata. Dopo la risposta, La mia scheda da riutilizzare apre il link indipendente dall’invito.
+
+La scheda personale è salvata localmente in chiaro perché contiene solo i campi condivisibili scelti, senza token o dati della rete. Si può disattivare Ricorda o usare Dimentica su questo dispositivo nella propria scheda. Se il browser blocca la memoria locale, il link resta utilizzabile e l’app invita a conservarlo. Nessun account o archivio centrale viene creato; una scheda condivisa si può riaprire su un altro dispositivo e scegliere È la mia scheda → Modifica per riprenderla.
+
+Chi riceve un link può leggerlo e scegliere **Aggiungi alla tua rete**: occorre essere connessi alla propria istanza di Tramite e confermare la scheda. In alternativa, si incolla da **Apri una scheda ricevuta**. Il collegamento propone la persona già mappata quando riconosce la stessa scheda o recapiti; gli appunti e le relazioni restano. Più membri dello stesso team conservano le proprie osservazioni sulla persona. Lo stesso link può essere aggiunto a repository distinti, senza una nuova compilazione.
+
+Dal proprio profilo nell’app, **Condividi la mia scheda** prepara il link dei propri campi. Non esporta note, relazioni o schede degli altri e non salva implicitamente le modifiche del modulo nel repository: per quelle rimane Salva profilo. L’identità della scheda del membro resta stabile tra dispositivi tramite il repository.
+
+**Ogni link contiene una versione della scheda.** Modificarla genera un nuovo link da inviare: chi ha la copia precedente non riceve aggiornamenti automatici. Il collegamento alla persona resta, evitando nuove schede a ogni versione. L’identità del compilatore non è verificata dal link: chi riceve conferma riconoscendo la persona nella conversazione. I link non sono cifrati e possono essere inoltrati; vanno condivisi soltanto con i destinatari scelti.
 
 ## Dati, salvataggio e recupero
 
@@ -107,4 +127,4 @@ A ogni rilascio dell’app si incrementa `package.json`: il build aggiorna modul
 
 I test usano dati inventati e API GitHub simulate. L’accesso reale richiede le credenziali del partecipante.
 
-Ispirato all’approccio essenziale di [Conto Cantiere](https://github.com/giusebuild/cantiere). Icone [Lucide](https://lucide.dev), licenza in `THIRD_PARTY_LICENSES.md`.
+Ispirato all’approccio essenziale di [Conto Cantiere](https://github.com/giusebuild/cantiere). Icone [Lucide](https://lucide.dev) e QR di [Project Nayuki](https://www.nayuki.io/page/qr-code-generator-library), licenze in `THIRD_PARTY_LICENSES.md`.

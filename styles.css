@@ -203,3 +203,26 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{cursor:
 #rete-tag .rs-observed>strong{font-size:12px;color:var(--rs-ink)}
 #rete-tag .rs-observed>.rs-text-btn{justify-self:start;font-size:12px}
 #rete-tag #response-existing-row{margin:18px 0}
+#rete-tag .rs-intents{padding:0;background:transparent;gap:8px;border-radius:0}
+#rete-tag .rs-intents button{border:1px solid var(--rs-line);background:var(--rs-surface);border-radius:12px;min-height:42px}
+#rete-tag .rs-intents button[aria-pressed="true"]::after{content:'×';font-size:17px;font-weight:400;margin-left:6px;line-height:1}
+#rete-tag .rs-invite-qr{width:min(280px,100%);margin:20px auto 8px;background:#fff;border-radius:20px;overflow:hidden}
+#rete-tag .rs-invite-qr:empty{display:none}
+#rete-tag .rs-invite-qr>svg{display:block;width:100%;height:auto}
+#rete-tag .rs-qr-download{margin:0 auto 18px;display:flex;justify-content:center;gap:7px;font-size:12px}
+#rete-tag #request-dialog{max-width:540px}
+#rete-tag .rs-personal-view{padding:28px}
+#rete-tag .rs-personal-view>h1{margin:14px 0 10px;overflow-wrap:anywhere}
+#rete-tag .rs-personal-view>.rs-role{margin-bottom:20px}
+#rete-tag .rs-personal-view .rs-person-offer{margin-top:20px}
+#rete-tag .rs-personal-view .rs-person-offer p,#rete-tag .rs-personal-view .rs-person-need p{white-space:pre-wrap;overflow-wrap:anywhere}
+#rete-tag .rs-personal-add{display:flex;align-items:center;justify-content:center;text-decoration:none;width:100%;gap:8px;margin:14px 0;color:var(--rs-accent);background:var(--rs-tint)}
+#rete-tag .rs-personal-tools{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:15px 0 20px}
+#rete-tag .rs-personal-tools .rs-text-btn{font-size:12px}
+#rete-tag .rs-personal-forget{font-size:11px;margin-top:20px;color:var(--rs-muted)}
+#rete-tag .rs-link-fallback{font-size:11px;min-height:80px;margin:10px 0;overflow-wrap:anywhere}
+#rete-tag #personal-form>.rs-check,#rete-tag #response-form>.rs-check{margin:15px 0 12px;font-size:12px;align-items:center}
+#rete-tag #personal-form>.rs-field-hint{margin:12px 0}
+#rete-tag #response-personal{margin:18px 0}
+#rete-tag #response-use-personal{margin:0 0 18px;color:var(--rs-accent)}
+@media(max-width:480px){#rete-tag .rs-invite-qr{width:260px;max-width:100%}#rete-tag .rs-personal-view{padding:20px}#rete-tag #rs-personal-share{width:100%;justify-content:center}}

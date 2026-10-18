@@ -2,11 +2,19 @@ import { decodeFormLink, encodeFormLink } from './profile-requests.js';
 import { normalizePhone, normalizeEmail, mailtoURL, whatsappURL } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
 import { hydrateIcons } from './icons.js';
+import { makePersonalCard, personalCardLink, loadPersonalCard, rememberPersonalCard, sameProfile } from './personal-card.js';
 import { PROFILE_FIELDS } from './profile-card.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
-let invitation, responseId;
+let invitation, responseId, personal = null, identityCard = null;
+try { personal = loadPersonalCard(); } catch {}
+function usePersonal() {
+  if (!personal) return; identityCard = personal;
+  for (const k of Object.keys(PROFILE_FIELDS)) q('#response-form').elements[k].value = personal.profile[k];
+  q('#response-prefill-hint').hidden = false; q('#response-prefill-hint').textContent = 'La tua scheda è già pronta. Rivedi e invia.'; q('#response-use-personal').hidden = true;
+  q('#response-remember').checked = true;
+}
 try {
   invitation = decodeFormLink(window.location.hash, 'invite'); responseId = crypto.randomUUID();
   q('#response-for').textContent = `Su invito di ${invitation.facilitator}`;
@@ -16,9 +24,13 @@ try {
     q('#response-prefill-hint').hidden = false;
     q('#response-prefill-hint').textContent = `${invitation.facilitator} ha preparato una bozza. Conferma ciò che va bene, correggi o aggiungi.`;
   }
+  if (personal) {
+    const matches = invitation.personId === 'new' || sameProfile(personal.profile, invitation.prefill || {});
+    if (matches) usePersonal(); else { q('#response-use-personal').hidden = false; q('#response-remember').checked = false; }
+  }
   const channel = invitation.replyPhone ? 'WhatsApp' : invitation.replyEmail ? 'email' : '';
   q('#response-submit-label').textContent = channel ? `Rispondi via ${channel}` : navigator.share ? 'Condividi la tua scheda' : 'Copia la tua risposta';
-  q('#response-delivery-hint').textContent = channel ? `Si apre ${channel} con la risposta pronta per ${invitation.facilitator}. Devi solo inviarla.` : 'Invia la risposta a chi ti ha invitato: aprirà la scheda e confermerà l’aggiunta.';
+  q('#response-delivery-hint').textContent = channel ? `${channel === 'email' ? 'La tua app email' : 'WhatsApp'} si apre con la risposta pronta per ${invitation.facilitator}. Devi solo inviarla.` : 'Invia la risposta a chi ti ha invitato: aprirà la scheda e confermerà l’aggiunta.';
   q('#response-editor').hidden = false;
 } catch (error) {
   q('#response-error').hidden = false;
@@ -29,12 +41,17 @@ q('#response-form').addEventListener('submit', async event => {
   try {
     if (!invitation) return;
     const f = event.currentTarget.elements;
+    const fields = Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, f[k].value]));
+    const reusable = makePersonalCard(fields, identityCard); identityCard = reusable;
+    let memoryNote = '';
+    if (q('#response-remember').checked) { try { rememberPersonalCard(reusable); personal = reusable; } catch { memoryNote = ' Questo browser non la ricorda: conserva il link della tua scheda.'; } }
+    q('#response-personal').href = personalCardLink(reusable, window.location.href); q('#response-personal').hidden = false;
     const response = { v: invitation.v, kind: 'response', personId: invitation.personId, authorId: invitation.authorId, requestId: invitation.requestId,
-      ...(invitation.v === 2 ? { responseId } : {}), name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: f.need.value.trim(),
+      ...(invitation.v === 2 ? { responseId } : {}), cardId: reusable.id, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: f.need.value.trim(),
       phone: normalizePhone(f.phone.value), email: normalizeEmail(f.email.value), linkedin: normalizeLinkedIn(f.linkedin.value) };
     const link = encodeFormLink(response, window.location.href);
     q('#response-link').value = link;
-    q('#response-return-copy').textContent = `${invitation.facilitator} aprirà la risposta e confermerà la tua scheda. Nessun appunto precedente verrà cancellato.`;
+    q('#response-return-copy').textContent = `${invitation.facilitator} aprirà la risposta e confermerà la tua scheda. Nessun appunto precedente verrà cancellato.${memoryNote}`;
     const message = `Ecco la mia scheda per Tramite:\n${link}`;
     q('#response-whatsapp').hidden = !invitation.replyPhone;
     const whatsapp = invitation.replyPhone ? whatsappURL(invitation.replyPhone, message) : '';
@@ -53,6 +70,7 @@ q('#response-form').addEventListener('submit', async event => {
     } else await copyResponse();
   } catch (error) { q('#response-validation').textContent = error.message; }
 });
+q('#response-use-personal').addEventListener('click', usePersonal);
 q('#response-edit').addEventListener('click', () => { q('#response-ready').hidden = true; q('#response-editor').hidden = false; q('#response-validation').textContent = ''; });
 async function copyResponse() {
   try { await navigator.clipboard.writeText(q('#response-link').value); q('#response-copy-status').textContent = 'Risposta copiata. Incollala nella conversazione con chi ti ha invitato.'; }

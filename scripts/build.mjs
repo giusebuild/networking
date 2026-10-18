@@ -3,7 +3,7 @@ const root = new URL('../', import.meta.url);
 await rm(new URL('dist/', root), { recursive: true, force: true });
 await mkdir(new URL('dist/', root));
 // Allowlist: no private file, export, README, test fixture or credential can enter the site build.
-for (const name of ['index.html', 'scheda.html', 'styles.css', 'src', 'icon.svg', 'icons', 'manifest.webmanifest', 'sw.js', '.nojekyll']) {
+for (const name of ['index.html', 'scheda.html', 'profilo.html', 'styles.css', 'src', 'icon.svg', 'icons', 'manifest.webmanifest', 'sw.js', '.nojekyll']) {
   await cp(new URL(name, root), new URL(`dist/${name}`, root), { recursive: true });
 }
 const { version } = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
@@ -13,7 +13,7 @@ for (const name of modules) {
   const text = await readFile(path, 'utf8');
   await writeFile(path, text.replace(/(from\s+|import\s+)(['"])(\.\/[^'"?]+\.js)(?:\?[^'"]*)?\2/g, (_, prefix, quote, file) => `${prefix}${quote}${file}?v=${version}${quote}`));
 }
-for (const page of ['index.html', 'scheda.html']) {
+for (const page of ['index.html', 'scheda.html', 'profilo.html']) {
 const indexPath = new URL(`dist/${page}`, root);
 let index = await readFile(indexPath, 'utf8');
 index = index.replace(/src="\.\/src\/([^"?]+\.js)(?:\?[^"]*)?"/, `src="./src/$1?v=${version}"`)
@@ -23,7 +23,7 @@ await writeFile(indexPath, index);
 }
 const swPath = new URL('dist/sw.js', root);
 const icons = (await readdir(new URL('dist/icons/', root))).map(name => `./icons/${name}`);
-const shell = ['./', './index.html', './scheda.html', `./styles.css?v=${version}`, './icon.svg', './manifest.webmanifest', ...icons, ...modules.map(name => `./src/${name}?v=${version}`)];
+const shell = ['./', './index.html', './scheda.html', './profilo.html', `./styles.css?v=${version}`, './icon.svg', './manifest.webmanifest', ...icons, ...modules.map(name => `./src/${name}?v=${version}`)];
 let sw = await readFile(swPath, 'utf8');
 sw = sw.replace(/^const CACHE = .*$/m, `const CACHE = 'networking-shell-${version}';`)
   .replace(/^const FILES = .*$/m, `const FILES = ${JSON.stringify(shell)};`);
