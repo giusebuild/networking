@@ -8,7 +8,7 @@ import { demoNetwork } from './demo.js';
 import { normalizeLinkedIn, draftFromText, suggestedTags, quickPersonFromText } from './profile.js';
 import { SmartTags } from './smart-tags.js';
 import { uniqueTags } from './tags.js';
-import { normalizePhone, whatsappURL, parseVCards } from './contacts.js';
+import { normalizePhone, whatsappURL, parseVCards, personContactActions } from './contacts.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
@@ -19,7 +19,7 @@ const emptyFilters = () => ({ skills: '', markets: '', interests: '', collaborat
 let search = '', filters = emptyFilters();
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
 let autoTimer, verified = false, draftUndo = null, importedSuggestions = {}, joinGuideShown = false;
-let quickDraft = null, quickNameEdited = false, quickHomonym = false;
+let quickDraft = null, quickNameEdited = false, quickHomonym = false, quickRoleEdited = false, quickLinkedinEdited = false;
 const offerTags = new SmartTags(q('#rs-offer-tags'));
 const requestTags = new SmartTags(q('#rs-need-tags'), 'need');
 const quickOfferTags = new SmartTags(q('#quick-tags'));
@@ -167,7 +167,7 @@ function renderContacts() {
 function chooseContact(index) {
   const contact = contactChoices[index]; if (!contact) return;
   q('#quick-name').value = contact.name; quickNameEdited = true;
-  q('#quick-phone').value = contact.phones[0] || ''; q('#quick-contact-row').hidden = false;
+  q('#quick-phone').value = contact.phones[0] || ''; q('#quick-links').open = true;
   if (!quickDraft) quickDraft = quickPersonFromText('');
   q('#contacts-dialog').close(); contactChoices = []; q('#contacts-list').replaceChildren(); renderQuickPreview(); q('#quick-name').focus();
 }
@@ -185,23 +185,35 @@ q('#contact-file').addEventListener('change', async e => {
 });
 function openQuickAdd() {
   if (sync.pending) { showConflicts(); return; }
-  q('#quick-form').reset(); quickDraft = quickPersonFromText(''); quickNameEdited = quickHelpEdited = quickNeedEdited = quickHomonym = false;
-  quickOfferTags.set(); quickRequestTags.set(); q('#quick-preview').hidden = false; q('#quick-notes').open = false;
-  q('#quick-contact-row').hidden = true; q('#quick-homonym').hidden = true; q('#quick-error').textContent = ''; q('#quick-matches').replaceChildren(); q('#quick-context').hidden = true;
+  q('#quick-form').reset(); quickDraft = quickPersonFromText(''); quickNameEdited = quickHelpEdited = quickNeedEdited = quickHomonym = quickRoleEdited = quickLinkedinEdited = false;
+  quickOfferTags.set({}, allTagPools()); quickRequestTags.set({}, allTagPools()); q('#quick-preview').hidden = false; q('#quick-notes').open = false; q('#quick-links').open = false;
+  q('#quick-linkedin').setCustomValidity(''); q('#quick-phone').setCustomValidity(''); updateProfileLinks();
+  q('#quick-homonym').hidden = true; q('#quick-error').textContent = ''; q('#quick-matches').replaceChildren(); q('#quick-context').hidden = true;
   showDialog('#quick-dialog'); q('#quick-name').focus();
 }
 function quickMatches() {
-  const name = norm(q('#quick-name').value.trim()); let phone = ''; try { phone = normalizePhone(q('#quick-phone').value); } catch {}
+  const name = norm(q('#quick-name').value.trim()); let phone = '', linkedin = ''; try { phone = normalizePhone(q('#quick-phone').value); } catch {} try { linkedin = normalizeLinkedIn(q('#quick-linkedin').value); } catch {}
   if (!quickDraft) return [];
-  return live(data().people).filter(p => (phone && p.phone === phone) || (name.length >= 2 && norm(p.name).includes(name)) || (quickDraft.linkedin && p.linkedin && normalizeLinkedIn(p.linkedin) === quickDraft.linkedin)).slice(0, 4);
+  return live(data().people).filter(p => (phone && p.phone === phone) || (name.length >= 2 && norm(p.name).includes(name)) || (linkedin && p.linkedin && normalizeLinkedIn(p.linkedin) === linkedin)).slice(0, 4);
 }
 function renderQuickPreview() {
   if (!quickDraft) return;
   q('#quick-preview').hidden = false;
   q('#quick-context').textContent = quickDraft.context;
   q('#quick-context').hidden = !quickDraft.context;
-  quickOfferTags.update(q('#quick-help').value); quickRequestTags.update(q('#quick-need').value);
+  quickOfferTags.update([q('#quick-help').value, q('#quick-role').value].join('\n')); quickRequestTags.update(q('#quick-need').value); updateProfileLinks();
   q('#quick-matches').innerHTML = quickHomonym ? '' : quickMatches().map(p => `<button type="button" class="rs-match" data-quick-existing="${esc(p.id)}"><span><strong>${esc(p.name)}</strong><small>Già nella rete · aggiungi il tuo collegamento</small></span>${icon('chevron-right')}</button>`).join('');
+}
+function updateProfileLinks() {
+  for (const [input, preview] of [
+    [q('#quick-linkedin'), q('#quick-linkedin-preview')],
+    [q('#rs-form').elements.personLinkedin, q('#rs-linkedin-preview')],
+    [q('#draft-form').elements.linkedin, q('#draft-linkedin-preview')],
+  ]) {
+    let href = ''; try { href = normalizeLinkedIn(input.value); } catch {}
+    preview.hidden = !href;
+    if (href) preview.href = href; else preview.removeAttribute('href');
+  }
 }
 function updateQuickDraft() {
   try {
@@ -209,15 +221,18 @@ function updateQuickDraft() {
     if (!quickNameEdited) q('#quick-name').value = quickDraft.name;
     if (!quickHelpEdited) q('#quick-help').value = quickDraft.help || quickDraft.role;
     if (!quickNeedEdited) q('#quick-need').value = quickDraft.need;
+    if (!quickRoleEdited) q('#quick-role').value = quickDraft.role;
+    if (!quickLinkedinEdited) q('#quick-linkedin').value = quickDraft.linkedin;
+    if (q('#quick-linkedin').value || q('#quick-role').value) q('#quick-links').open = true;
     quickHomonym = false; q('#quick-homonym').hidden = true; q('#quick-error').textContent = '';
     renderQuickPreview();
   } catch (error) { q('#quick-error').textContent = error.message; }
 }
 function applyQuickDraft() {
   const f = q('#rs-form').elements;
-  for (const [key, value] of Object.entries({ personName: q('#quick-name').value.trim(), personHelp: q('#quick-help').value, personNeed: q('#quick-need').value, personPhone: q('#quick-phone').value, personRole: quickDraft.role, personLinkedin: quickDraft.linkedin, personContext: quickDraft.context, personSince: quickDraft.since })) f[key].value = value;
+  for (const [key, value] of Object.entries({ personName: q('#quick-name').value.trim(), personHelp: q('#quick-help').value, personNeed: q('#quick-need').value, personPhone: q('#quick-phone').value, personRole: q('#quick-role').value, personLinkedin: q('#quick-linkedin').value, personContext: quickDraft.context, personSince: quickDraft.since })) f[key].value = value;
   offerTags.set(quickOfferTags.values, allTagPools()); requestTags.set(quickRequestTags.values, allTagPools()); offerTags.blocked = new Set(quickOfferTags.blocked); requestTags.blocked = new Set(quickRequestTags.blocked);
-  refreshSuggestions(); showMatches();
+  refreshSuggestions(); showMatches(); updateProfileLinks();
 }
 function saveQuickPerson(e) {
   e.preventDefault();
@@ -225,16 +240,21 @@ function saveQuickPerson(e) {
     if (!quickDraft) quickDraft = quickPersonFromText('');
     const name = q('#quick-name').value.trim();
     if (!name) { q('#quick-name').focus(); q('#quick-error').textContent = 'Aggiungi il nome.'; return; }
-    const sameProfile = quickDraft.linkedin && live(data().people).some(p => p.linkedin && normalizeLinkedIn(p.linkedin) === quickDraft.linkedin);
+    let linkedin = '', phone = '';
+    try { linkedin = normalizeLinkedIn(q('#quick-linkedin').value); q('#quick-linkedin').setCustomValidity(''); }
+    catch (error) { q('#quick-links').open = true; q('#quick-linkedin').setCustomValidity(error.message); q('#quick-linkedin').reportValidity(); throw error; }
+    try { phone = normalizePhone(q('#quick-phone').value); q('#quick-phone').setCustomValidity(''); }
+    catch (error) { q('#quick-links').open = true; q('#quick-phone').setCustomValidity(error.message); q('#quick-phone').reportValidity(); throw error; }
+    const sameProfile = linkedin && live(data().people).some(p => p.linkedin && normalizeLinkedIn(p.linkedin) === linkedin);
     if (sameProfile || (!quickHomonym && live(data().people).some(p => norm(p.name) === norm(name)))) {
       q('#quick-error').textContent = 'È la persona già nella rete? Apri la scheda qui sotto.';
       q('#quick-homonym').hidden = !!sameProfile; renderQuickPreview(); return;
     }
     quickOfferTags.commit(); quickRequestTags.commit();
-    const phone = normalizePhone(q('#quick-phone').value), help = q('#quick-help').value.trim(), need = makeNeed(undefined, q('#quick-need').value, quickRequestTags.values);
+    const help = q('#quick-help').value.trim(), need = makeNeed(undefined, q('#quick-need').value, quickRequestTags.values);
     const id = crypto.randomUUID(), key = keyFor(id, user.id);
     sync.edit(d => {
-      d.people[id] = { id, name, role: quickDraft.role, memberId: null, createdBy: user.id, ...(quickDraft.linkedin ? { linkedin: quickDraft.linkedin } : {}), ...(phone ? { phone } : {}) };
+      d.people[id] = { id, name, role: q('#quick-role').value.trim(), memberId: null, createdBy: user.id, ...(linkedin ? { linkedin } : {}), ...(phone ? { phone } : {}) };
       d.contributions[key] = { id: key, personId: id, authorId: user.id, help, ...quickOfferTags.values, collaboration: 'Da chiedere', ...(need !== undefined ? { need } : {}) };
       d.relationships[key] = { id: key, personId: id, authorId: user.id, context: quickDraft.context, since: quickDraft.since, level: '', last: '', note: '' };
     });
@@ -251,6 +271,7 @@ function resetUI() {
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
   for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error']) q(selector).textContent = '';
   q('#intro-message').value = '';
+  for (const id of ['rs-linkedin-preview', 'quick-linkedin-preview', 'draft-linkedin-preview']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
   for (const key of ['skills', 'markets', 'interests', 'knower']) q('#rs-filter-' + key).innerHTML = '<option value="">Tutti</option>';
   for (const editor of [offerTags, requestTags, quickOfferTags, quickRequestTags]) editor.set();
   contactChoices = []; introPhone = ''; q('#contacts-list').replaceChildren(); q('#intro-whatsapp').removeAttribute('href'); q('#intro-whatsapp').hidden = true;
@@ -282,11 +303,20 @@ function cardTags(values) {
   const tags = uniqueTags(values);
   return tags.length ? `<span class="rs-row-tags">${tagLine(tags.slice(0, 3))}${tags.length > 3 ? `<span class="rs-tag rs-tag-count">+${tags.length - 3}</span>` : ''}</span>` : '';
 }
+function contactActionsHTML(p) {
+  return `<div class="rs-contact-actions" aria-label="Contatta ${esc(p.name)}">${personContactActions(p, user.id).map(action => {
+    if (action.type === 'whatsapp') return `<a class="rs-btn rs-whatsapp" href="${esc(action.href)}" target="_blank" rel="noopener noreferrer" aria-label="Scrivi a ${esc(p.name)} su WhatsApp">${icon('message-circle')}WhatsApp</a>`;
+    if (action.type === 'linkedin') return `<a class="rs-btn rs-linkedin" href="${esc(action.href)}" target="_blank" rel="noopener noreferrer" aria-label="Apri il profilo LinkedIn di ${esc(p.name)}"><span class="rs-linkedin-mark" aria-hidden="true">in</span>LinkedIn${icon('arrow-up-right')}</a>`;
+    if (action.type === 'introduction') return `<button type="button" class="rs-btn rs-intro-link" data-introduction="${esc(action.authorId)}" data-contact-person="${esc(p.id)}">${icon('user-plus')}Chiedi un’intro</button>`;
+    if (action.type === 'add-contact') return `<button type="button" class="rs-text-btn rs-contact-missing" data-edit-contact="${esc(p.id)}">${icon('plus')}Aggiungi recapiti</button>`;
+    return `<button type="button" class="rs-text-btn" data-contact-relation="${esc(p.id)}">${icon('link')}Lo conosco anch’io</button>`;
+  }).join('')}</div>`;
+}
 function row(p) {
   const o = offer(p), n = request(p), mine = ownRelationship(p);
   const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
   const offeredTags = cardTags([...p.skills, ...p.markets]), neededTags = n ? cardTags([...n.need.skills, ...n.need.markets]) : '';
-  return `<button type="button" class="rs-person" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span>${o?.help || offeredTags ? `<span class="rs-card-offer"><span class="rs-intent-label">Può aiutare</span>${o?.help ? `<span class="rs-help-copy">${esc(o.help)}</span>` : ''}${offeredTags}</span>` : ''}${n ? `<span class="rs-card-need"><span class="rs-intent-label">Cerca</span><span class="rs-help-copy">${esc(n.need.text)}</span>${neededTags}</span>` : ''}${!o?.help && !offeredTags && !n ? '<span class="rs-help-copy rs-placeholder">Una conoscenza da scoprire.</span>' : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>`;
+  return `<article class="rs-person" data-selected="${p.id === selected}"><button type="button" class="rs-person-open" data-person="${esc(p.id)}" aria-pressed="${p.id === selected}" aria-controls="rs-detail"><span class="rs-person-top"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><span class="rs-person-heading"><span class="rs-person-name">${esc(p.name)}</span>${p.role ? `<span class="rs-role">${esc(p.role)}</span>` : ''}</span>${icon('chevron-right')}</span>${o?.help || offeredTags ? `<span class="rs-card-offer"><span class="rs-intent-label">${icon('briefcase')}Offre</span>${o?.help ? `<span class="rs-help-copy">${esc(o.help)}</span>` : ''}${offeredTags}</span>` : ''}${n ? `<span class="rs-card-need"><span class="rs-intent-label">${icon('search')}Cerca</span><span class="rs-help-copy">${esc(n.need.text)}</span>${neededTags}</span>` : ''}${!o?.help && !offeredTags && !n ? '<span class="rs-help-copy rs-placeholder">Una conoscenza da scoprire.</span>' : ''}<span class="rs-person-route">${icon(mine ? 'link' : 'user-round')}${esc(knowers || (p.memberId ? 'Nel team' : 'Collegamento da aggiungere'))}</span></button>${contactActionsHTML(p)}</article>`;
 }
 function detail(p) {
   if (!p) return '';
@@ -298,11 +328,11 @@ function detail(p) {
   const attribution = statuses.map(c => `${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${nameOf(c.authorId)}`).join(' · ');
   let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
   html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}${availability ? `<span class="rs-availability" title="${esc(attribution)}" aria-label="${esc(availability + '. ' + attribution)}"><span class="rs-status-dot"></span>${availability}</span>` : ''}</div></div></div>`;
+  html += contactActionsHTML(p);
   const source = c => c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
-  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${own ? 'Posso aiutare con' : 'Può aiutare con'}</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine([...new Set([...p.skills, ...p.markets])])}${editable ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
+  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine([...new Set([...p.skills, ...p.markets])])}${editable ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
   const n = request(p);
-  if (n || editable) html += `<section class="rs-person-need"><h3 class="rs-intent-label">${own ? 'Cerco' : 'Cerca'}</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personNeed"><span>${esc(n?.need.text || 'Un aiuto, una collaborazione, un confronto…')}</span>${icon('pencil')}</button>` : n ? `<p>${esc(n.need.text)}</p>` : ''}${n ? `<span class="rs-source">${esc(source(n))} · ${new Date(n.need.updatedAt).toLocaleDateString('it-IT')}</span><div class="rs-tag-list">${tagLine([...new Set([...n.need.skills, ...n.need.markets])])}</div>` : ''}</section>`;
-  if (p.phone && (mine || own || p.memberId)) html += `<a class="rs-btn rs-whatsapp rs-contact-action" href="${esc(whatsappURL(p.phone, `Ciao ${p.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`))}" target="_blank" rel="noopener noreferrer">Scrivi su WhatsApp ↗</a>`;
+  if (n || editable) html += `<section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3>${editable ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personNeed"><span>${esc(n?.need.text || 'Un aiuto, una collaborazione, un confronto…')}</span>${icon('pencil')}</button>` : n ? `<p>${esc(n.need.text)}</p>` : ''}${n ? `<span class="rs-source">${esc(source(n))} · ${new Date(n.need.updatedAt).toLocaleDateString('it-IT')}</span><div class="rs-tag-list">${tagLine([...new Set([...n.need.skills, ...n.need.markets])])}</div>` : ''}</section>`;
   if (!own) {
     html += '<section class="rs-connections"><h3>Chi lo conosce</h3>';
     for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
@@ -315,13 +345,12 @@ function detail(p) {
     html += '</section>';
   }
   const others = p.contributions.filter(c => c !== o && (c.help || c.need?.text));
-  if (p.interests.length || others.length || p.linkedin || p.phone || availability) {
+  if (p.interests.length || others.length || p.phone || availability) {
     html += '<details class="rs-person-more"><summary>Altri dettagli' + icon('chevron-right') + '</summary><div class="rs-more-content">';
     if (availability) html += `<div class="rs-tag-group"><span class="rs-tag-label">Collaborazioni · ${esc(availability)}</span><span class="rs-source">${esc(attribution)}</span></div>`;
     for (const [key, label] of [['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</div></div>`;
     if (others.length) html += `<div class="rs-observation">${others.map(c => `<p>${esc(c.help)}</p>${c.need?.text ? `<p><strong>Cerca:</strong> ${esc(c.need.text)}</p>` : ''}<span class="rs-source">${esc(nameOf(c.authorId))}</span>`).join('')}</div>`;
     if (p.phone) html += `<div class="rs-tag-group"><span class="rs-tag-label">Telefono</span><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`;
-    if (p.linkedin) html += `<a class="rs-profile-link" href="${esc(normalizeLinkedIn(p.linkedin))}" target="_blank" rel="noopener noreferrer">Profilo LinkedIn ↗</a>`;
     html += '</div></details>';
   }
   return html + '</article>';
@@ -401,10 +430,10 @@ function openForm(kind) {
   q('#rs-extra').open = false; q('#rs-relation-details').open = relationOnly; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || kind === 'edit';
-  q('#rs-help-label').textContent = own ? 'Posso aiutare con…' : 'Può aiutare con…';
-  q('#rs-help-hint').textContent = 'Cosa può diventare utile, e per chi.';
+  q('#rs-help-label').textContent = own ? 'Cosa puoi fare?' : 'Cosa sa fare?';
+  q('#rs-help-hint').textContent = 'Servizi, esperienza o contatti utili.';
   f.personHelp.placeholder = 'Es. Siti e prenotazioni online per studi medici';
-  q('#rs-need-label').textContent = own ? 'Cerco…' : 'Cerca…';
+  q('#rs-need-label').textContent = own ? 'Di cosa hai bisogno?' : 'Di cosa ha bisogno?';
   q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
   q('#rs-form-eyebrow').hidden = !relationOnly;
   q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
@@ -422,7 +451,7 @@ function openForm(kind) {
   f.personCollaboration.value = c?.collaboration || 'Da chiedere';
   for (const [field, key] of [['Context', 'context'], ['Since', 'since'], ['Level', 'level'], ['Last', 'last'], ['Note', 'note']]) f['person' + field].value = r?.[key] || '';
   offerTags.set(c || {}, allTagPools()); requestTags.set(c?.need || {}, allTagPools());
-  updateChoices(); refreshSuggestions();
+  updateChoices(); refreshSuggestions(); updateProfileLinks();
   root.dataset.view = 'form'; form.hidden = false; q('#rs-add').hidden = true;
   (relationOnly ? f.personContext : own ? f.personHelp : f.personName.disabled ? f.personHelp : f.personName).focus({ preventScroll: true });
   window.scrollTo?.({ top: 0, behavior: 'instant' });
@@ -521,17 +550,18 @@ q('#draft-form').addEventListener('submit', e => {
   e.preventDefault();
   try {
     const source = e.currentTarget.elements, f = q('#rs-form').elements;
-    if (!source.text.value.trim() && !source.linkedin.value.trim()) throw new Error('Incolla un testo o un link per iniziare.');
+    if (!source.text.value.trim() && !source.linkedin.value.trim() && !source.headline.value.trim()) throw new Error('Incolla un testo o un link per iniziare.');
     const draft = draftFromText(source.text.value, source.linkedin.value);
+    if (source.headline.value.trim()) draft.role = source.headline.value.trim();
     offerTags.commit(); requestTags.commit();
     draftUndo = formSnapshot();
     for (const [field, value] of Object.entries({ personName: draft.name, personRole: draft.role, personHelp: draft.help, personNeed: draft.need, personLinkedin: draft.linkedin })) if (value && !f[field].disabled) f[field].value = value;
-    offerTags.set(Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...offerTags.values[k], ...draft[k]]])), allTagPools()); requestTags.set(draft.needTags || {}, allTagPools());
+    offerTags.set(Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...offerTags.values[k], ...draft[k]]])), allTagPools()); if (draft.need) requestTags.set(draft.needTags || {}, allTagPools());
     importedSuggestions = draft.suggestions; refreshSuggestions();
     q('#rs-draft-applied').hidden = false;
-    q('#rs-draft-applied span').textContent = draft.shortened ? 'Testo ridotto a 1.500 caratteri. Rivedi la bozza prima di salvare.' : source.text.value.trim() ? 'Bozza pronta. Rivedi testo e tag prima di salvare.' : 'Profilo collegato. Aggiungi il nome o incolla una presentazione.';
+    q('#rs-draft-applied span').textContent = draft.shortened ? 'Testo ridotto a 1.500 caratteri. Rivedi la bozza prima di salvare.' : source.text.value.trim() || source.headline.value.trim() ? 'Bozza pronta. Rivedi testo e tag prima di salvare.' : 'Profilo collegato. Aggiungi il nome o incolla una presentazione.';
     if (draft.linkedin || draft.role || draft.markets.length || draft.interests.length) q('#rs-tags-editor').open = true;
-    q('#draft-dialog').close(); showMatches();
+    q('#draft-dialog').close(); showMatches(); updateProfileLinks();
     (f.personName.value ? f.personHelp : f.personName).focus();
   } catch (error) { q('#draft-error').textContent = error.message; }
 });
@@ -564,11 +594,15 @@ q('#quick-form').addEventListener('submit', saveQuickPerson);
 q('#quick-text').addEventListener('input', updateQuickDraft);
 for (const [id, key] of [['quick-help', 'help'], ['quick-need', 'need']]) q('#' + id).addEventListener('input', () => { if (key === 'help') quickHelpEdited = true; else quickNeedEdited = true; renderQuickPreview(); });
 q('#quick-name').addEventListener('input', () => { quickNameEdited = true; quickHomonym = false; q('#quick-homonym').hidden = true; renderQuickPreview(); });
+q('#quick-role').addEventListener('input', () => { quickRoleEdited = true; renderQuickPreview(); });
+q('#quick-linkedin').addEventListener('input', e => { quickLinkedinEdited = true; e.target.setCustomValidity(''); renderQuickPreview(); });
+q('#quick-phone').addEventListener('input', e => { e.target.setCustomValidity(''); renderQuickPreview(); });
+q('#draft-form').elements.linkedin.addEventListener('input', updateProfileLinks);
 q('#rs-search').addEventListener('input', e => { search = e.target.value; render(); });
 q('#intro-message').addEventListener('input', () => { q('#intro-status').textContent = ''; updateIntroductionLink(); });
 q('#rs-name').addEventListener('input', () => { allowSameName = false; q('[data-action="different-person"]').hidden = false; showMatches(); });
 for (const field of ['personHelp', 'personRole', 'personNeed']) q('#rs-form').elements[field].addEventListener('input', refreshSuggestions);
-q('#rs-form').elements.personLinkedin.addEventListener('input', e => { e.target.setCustomValidity(''); showMatches(); });
+q('#rs-form').elements.personLinkedin.addEventListener('input', e => { e.target.setCustomValidity(''); showMatches(); updateProfileLinks(); });
 q('#rs-form').elements.personPhone.addEventListener('input', e => e.target.setCustomValidity(''));
 for (const key of Object.keys(filters)) q('#rs-filter-' + key)?.addEventListener('change', e => { filters[key] = e.target.value; render(); });
 q('#import-file').addEventListener('change', async e => {
@@ -596,7 +630,9 @@ root.addEventListener('click', async e => {
     }
     if (b.dataset.skillFilter) { filters.skills = norm(filters.skills) === norm(b.dataset.skillFilter) ? '' : b.dataset.skillFilter; selected = null; render(); return; }
     if (b.dataset.person) { selected = b.dataset.person; render(); focusDetail(); return; }
-    if (b.dataset.introduction) { openIntroduction(b.dataset.introduction); return; }
+    if (b.dataset.introduction) { if (b.dataset.contactPerson) { selected = b.dataset.contactPerson; render(); } openIntroduction(b.dataset.introduction); return; }
+    if (b.dataset.editContact) { selected = b.dataset.editContact; render(); editAt('personLinkedin'); return; }
+    if (b.dataset.contactRelation) { selected = b.dataset.contactRelation; render(); openForm('relation'); return; }
     if (b.dataset.accessRole) { openAccessGuide(b.dataset.accessRole); return; }
     if (b.dataset.existing) {
       selected = b.dataset.existing; clearFilters(); closeForm(); render();
@@ -608,6 +644,7 @@ root.addEventListener('click', async e => {
     const a = b.dataset.action;
     if (a === 'new') openQuickAdd();
     if (a === 'pick-contact') await pickContact();
+    if (a === 'quick-paste-profile') { q('#quick-notes').open = true; q('#quick-text').focus(); q('#quick-text').scrollIntoView?.({ block: 'center', behavior: 'smooth' }); }
     if (a === 'quick-details') { if (!quickDraft) quickDraft = quickPersonFromText(''); q('#quick-dialog').close(); openForm('new'); applyQuickDraft(); }
     if (a === 'quick-homonym') { quickHomonym = true; q('#quick-homonym').hidden = true; q('#quick-error').textContent = ''; renderQuickPreview(); }
     if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
@@ -622,11 +659,11 @@ root.addEventListener('click', async e => {
     if (a === 'reset-tags') { for (const k of Object.keys(filters)) filters[k] = ''; render(); }
     if (a === 'different-person') { allowSameName = true; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-form [type="submit"]').focus(); }
     if (a === 'sync') await synchronize();
-    if (a === 'draft-open') { q('#draft-form').reset(); q('#draft-form').elements.linkedin.value = q('#rs-form').elements.personLinkedin.value; q('#draft-error').textContent = ''; showDialog('#draft-dialog'); }
+    if (a === 'draft-open') { q('#draft-form').reset(); q('#draft-form').elements.linkedin.value = q('#rs-form').elements.personLinkedin.value; q('#draft-error').textContent = ''; updateProfileLinks(); showDialog('#draft-dialog'); }
     if (a === 'draft-undo' && draftUndo) {
       const f = q('#rs-form').elements; for (const [key, value] of Object.entries(draftUndo.fields)) f[key].value = value;
       offerTags.set(draftUndo.tags, allTagPools()); requestTags.set(draftUndo.needTags, allTagPools()); offerTags.blocked = new Set(draftUndo.blocked); requestTags.blocked = new Set(draftUndo.needBlocked);
-      draftUndo = null; importedSuggestions = {}; q('#rs-draft-applied').hidden = true; refreshSuggestions();
+      draftUndo = null; importedSuggestions = {}; q('#rs-draft-applied').hidden = true; refreshSuggestions(); updateProfileLinks();
     }
     if (a === 'remember' && !demo && !vault) { q('#remember-form').reset(); q('#remember-error').textContent = ''; q('#settings-dialog').close(); showDialog('#remember-dialog'); }
     if (a === 'settings') showDialog('#settings-dialog');

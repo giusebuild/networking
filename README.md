@@ -6,9 +6,9 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 ## Uso
 
-**Aggiungi** apre una scheda breve: nome, **Può aiutare con…**, **Cerca…**. Solo il nome è obbligatorio. Puoi incollare appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
+**Aggiungi** apre una scheda breve: nome, **Cosa sa fare?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
 
-La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Può aiutare** e **Cerca** filtrano la stessa rete per il tipo di informazione. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
+La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** filtrano la stessa rete per il tipo di informazione. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
 
 Le informazioni dei conoscenti conservano l’autore. Le dichiarazioni di un partecipante hanno precedenza per la ricerca sul suo profilo. Nomi uguali non uniscono automaticamente persone: scegli una scheda già presente per aggiungere la tua relazione con **Lo conosco anch’io**. Il collegamento al titolare di una scheda creata prima del suo accesso non è automatico.
 
@@ -45,7 +45,11 @@ Si importano soltanto nome e numeri leggibili; con più contatti scegli quello d
 
 **WhatsApp** apre la conversazione con un messaggio precompilato, da rivedere e inviare personalmente. Per un’introduzione il destinatario è il facilitatore scelto; se il suo numero non è disponibile, resta **Copia messaggio**. Non ci sono invii automatici, API WhatsApp o chat interne. Il collegamento WhatsApp richiede un numero effettivamente registrato al servizio.
 
-LinkedIn resta un riferimento facoltativo, normalizzato e utile per riconoscere un profilo già presente: l’app non scarica né sincronizza i profili.
+Le card e le schede mostrano subito **WhatsApp** e **LinkedIn**, quando disponibili. Per un contatto raggiungibile tramite un collaboratore, **Chiedi un’intro** apre la richiesta al facilitatore. **Aggiungi recapiti** apre il modulo se mancano i canali: si può comunque creare una scheda con il solo nome.
+
+In **WhatsApp e LinkedIn**, nell’inserimento rapido, si aggiungono telefono, URL e titolo. L’URL viene normalizzato e riconosce un profilo già presente anche con un altro nome. **Apri profilo** porta a LinkedIn; **Incolla titolo e presentazione** prepara una bozza dai testi copiati. Nel modulo completo si può anche indicare il titolo separatamente e annullare la bozza prima del salvataggio. Una presentazione incollata non elimina una richiesta già presente.
+
+Il solo URL non importa titolo o presentazione. L’app non scarica né sincronizza profili LinkedIn e non usa proxy di scraping o servizi esterni: il testo incollato viene elaborato sul dispositivo e resta da confermare.
 
 ## Dati, salvataggio e recupero
 

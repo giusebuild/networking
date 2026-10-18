@@ -1,3 +1,5 @@
+import { normalizeLinkedIn } from './profile.js';
+
 export function normalizePhone(value) {
   const text = String(value || '').trim(); if (!text) return '';
   let number = text.replace(/^tel:/i, '').replace(/[\s().-]/g, '');
@@ -30,4 +32,20 @@ export function parseVCards(text) {
   if (!result.length) throw new Error('Nessun contatto leggibile. Usa un file .vcf esportato dalla rubrica.');
   if (result.length > 1000) throw new Error('Importa al massimo 1.000 contatti alla volta.');
   return result;
+}
+
+// Public profile links can be opened directly. Private numbers keep the existing
+// path through the person who knows the contact.
+export function personContactActions(person, viewerId) {
+  const mine = person.relationships?.some(r => r.authorId === viewerId);
+  const direct = mine || !!person.memberId || person.createdBy === viewerId;
+  const actions = [];
+  if (!direct) {
+    const referent = person.relationships?.find(r => r.authorId !== viewerId);
+    if (referent) actions.push({ type: 'introduction', authorId: referent.authorId });
+  }
+  if (direct && person.phone) actions.push({ type: 'whatsapp', href: whatsappURL(person.phone, `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`) });
+  if (person.linkedin) actions.push({ type: 'linkedin', href: normalizeLinkedIn(person.linkedin) });
+  if (!actions.length) actions.push({ type: !person.memberId || person.memberId === viewerId ? 'add-contact' : 'add-relationship' });
+  return actions;
 }
