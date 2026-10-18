@@ -1,6 +1,7 @@
 import { needTags } from './profile.js';
 
 export const MAX_NEEDS = 20;
+export const canCloseNeed = (person, contribution, viewerId) => typeof viewerId === 'string' && !!viewerId && !!person && person.memberId === viewerId && contribution?.authorId === viewerId && !contribution?.reported;
 const key = /^[a-zA-Z0-9_-]{1,80}$/;
 const plain = v => v && typeof v === 'object' && !Array.isArray(v);
 const safeKey = v => key.test(v) && !['__proto__', 'constructor', 'prototype'].includes(v);

@@ -9,7 +9,7 @@ import { PROFILE_FIELDS } from './profile-card.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
-const needsEditor = new NeedsEditor(q('#response-needs-editor'));
+const needsEditor = new NeedsEditor(q('#response-needs-editor'), { self: true });
 let invitation, responseId, personal = null, identityCard = null;
 try { personal = loadPersonalCard(); } catch {}
 function usePersonal() {

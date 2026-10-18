@@ -1,5 +1,5 @@
 import { NeedsEditor } from './needs-editor.js';
-import { needEntries, needsMap, profileNeeds } from './needs.js';
+import { needEntries, needsMap, profileNeeds, canCloseNeed } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { CONFIG } from './config.js';
 import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, removeFromNetwork, matchingNeeds } from './model.js';
@@ -507,6 +507,23 @@ function contactActionsHTML(p, need = null) {
     return `<button type="button" class="rs-text-btn" data-contact-relation="${esc(p.id)}">${icon('link')}Lo conosco anch’io</button>`;
   }).join('')}</div>`;
 }
+function needActionHTML(p, c) {
+  if (p.memberId === user.id) return canCloseNeed(p, c, user.id) ? `<button type="button" class="rs-text-btn rs-need-stop" data-resolve-need="${esc(c.needId)}" data-need-source="${esc(c.id)}" aria-label="Non cerco più: ${esc(c.need.text)}">Non cerco più</button>` : '';
+  const actions = personContactActions(p, user.id, { intent: 'need', need: c.need.text });
+  const action = actions.find(a => ['whatsapp', 'email', 'introduction'].includes(a.type));
+  if (!action) return '';
+  if (action.type === 'introduction') return `<button type="button" class="rs-text-btn rs-need-talk" data-introduction="${esc(action.authorId)}" data-contact-person="${esc(p.id)}" data-need-id="${esc(c.needId)}" data-need-source="${esc(c.id)}">Chiedi un’intro${icon('arrow-up-right')}</button>`;
+  return `<a class="rs-text-btn rs-need-talk" href="${esc(action.href)}" ${action.type === 'whatsapp' ? 'target="_blank" rel="noopener noreferrer"' : ''} aria-label="Parla con ${esc(p.name)} di: ${esc(c.need.text)}" title="${action.type === 'whatsapp' ? 'WhatsApp' : 'Email'}">Ne parliamo${icon('arrow-up-right')}</a>`;
+}
+const usefulTags = (values, text) => uniqueTags(values).filter(t => !norm(text).includes(norm(t)));
+function needsHTML(p, requests) {
+  const groups = new Map();
+  for (const c of requests) {
+    const source = p.memberId === user.id ? '' : c.reported ? 'Dalla sua scheda' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : c.authorId === user.id ? 'I tuoi appunti' : `Appunti di ${nameOf(c.authorId)}`;
+    if (!groups.has(source)) groups.set(source, []); groups.get(source).push(c);
+  }
+  return [...groups].map(([source, entries]) => `<div class="rs-needs-group">${source ? `<p class="rs-needs-source">${esc(source)}</p>` : ''}${entries.map(c => `<div class="rs-need-result"><p>${esc(c.need.text)}</p>${usefulTags([...c.need.skills, ...c.need.markets], c.need.text).length ? `<div class="rs-tag-list">${tagLine(usefulTags([...c.need.skills, ...c.need.markets], c.need.text))}</div>` : ''}${needActionHTML(p,c)}</div>`).join('')}</div>`).join('');
+}
 function row(p) {
   const o = offer(p), n = request(p), requests = visibleRequests(p), mine = ownRelationship(p);
   const knowers = [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id)).map(r => r.authorId === user.id ? 'Tu' : nameOf(r.authorId)).join(' · ');
@@ -522,8 +539,9 @@ function detail(p) {
   html += `<section class="rs-reach"><h3>${own ? 'Come contattarti' : 'Come contattarlo'}</h3>${contactActionsHTML(p)}</section>`;
   const source = c => c.reported ? 'Dalla scheda compilata' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
   html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
-  const requests = visibleRequests(p, true);
-  if (requests.length || editable) html += `<section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3>${requests.map(c => `<div class="rs-need-result"><p>${esc(c.need.text)}</p><span class="rs-source">${esc(source(c))} · ${new Date(c.need.updatedAt).toLocaleDateString('it-IT')}</span><div class="rs-tag-list">${tagLine([...c.need.skills, ...c.need.markets])}</div>${contactActionsHTML(p, c)}${!c.reported && c.authorId === user.id ? `<button type="button" class="rs-text-btn" data-resolve-need="${esc(c.needId)}" data-need-source="${esc(c.id)}" aria-label="Segna risolta: ${esc(c.need.text)}">${icon('check')}Risolta</button>` : ''}</div>`).join('')}${editable ? `<button type="button" class="rs-text-btn" data-edit-field="personNeed">${icon('pencil')}${ownContribution(p) ? 'Gestisci esigenze' : 'Aggiungi esigenza'}</button>` : ''}</section>`;
+  const requests = visibleRequests(p, true), ownNotes = ownContribution(p);
+  if (requests.length || editable) html += `<section class="rs-person-need"><div class="rs-needs-heading"><h3 class="rs-intent-label">${icon('search')}${own ? 'Cerco' : 'Cerca'}</h3>${editable ? `<button type="button" class="rs-text-btn rs-needs-edit" data-edit-field="personNeed" aria-label="${own ? 'Modifica le tue richieste' : 'Modifica le richieste annotate da te'}">${icon(needEntries(ownNotes).length ? 'pencil' : 'plus')}${own ? needEntries(ownNotes).length ? 'Modifica' : 'Aggiungi' : needEntries(ownNotes).length ? 'Appunti' : 'Aggiungi appunto'}</button>` : ''}</div>${needsHTML(p, requests)}</section>`;
+
   if (!own) {
     html += '<section class="rs-connections"><h3>Chi lo conosce</h3>';
     for (const r of [...p.relationships].sort((a, b) => Number(b.authorId === user.id) - Number(a.authorId === user.id))) {
@@ -536,12 +554,13 @@ function detail(p) {
     html += '</section>';
   }
   if (!p.memberId && (mine || ownContribution(p) || p.createdBy === user.id)) html += `<button type="button" class="rs-btn rs-request-profile" data-action="request-profile">${icon('send')}Fai compilare la scheda</button>`;
-  const others = p.contributions.filter(c => c !== o && (c.help || needEntries(c, false).length || c.presentation || c.skills.length || c.markets.length));
+  const additionalNeeds = c => needEntries(c, false).filter(n => !requests.some(shown => norm(shown.need.text.trim()) === norm(n.text.trim())));
+  const others = p.contributions.filter(c => c !== o && (c.help || additionalNeeds(c).length || c.presentation || c.skills.length || c.markets.length));
   if (p.interests.length || others.length || p.phone || o?.presentation) {
     html += '<details class="rs-person-more"><summary>Altri dettagli' + icon('chevron-right') + '</summary><div class="rs-more-content">';
     if (o?.presentation) html += `<details class="rs-original"><summary>Testo originale</summary><p>${esc(o.presentation)}</p></details>`;
     for (const [key, label] of [['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</div></div>`;
-    if (others.length) html += `<div class="rs-observation">${others.map(c => `<section class="rs-observed"><strong>${c.authorId === user.id ? 'I tuoi appunti' : esc(nameOf(c.authorId))}</strong><p>${esc(c.help)}</p><div class="rs-tag-list">${tagLine([...c.skills, ...c.markets])}</div>${needEntries(c, false).map(n => `<p><strong>${n.status === 'resolved' ? 'Risolta' : 'Cerca'}:</strong> ${esc(n.text)}</p>`).join('')}${c.presentation ? `<details class="rs-original"><summary>Testo originale</summary><p>${esc(c.presentation)}</p></details>` : ''}${c.authorId === user.id ? '<button type="button" class="rs-text-btn" data-action="edit">Modifica i tuoi appunti</button>' : ''}</section>`).join('')}</div>`;
+    if (others.length) html += `<div class="rs-observation">${others.map(c => `<section class="rs-observed"><strong>${c.authorId === user.id ? 'I tuoi appunti' : esc(nameOf(c.authorId))}</strong><p>${esc(c.help)}</p><div class="rs-tag-list">${tagLine([...c.skills, ...c.markets])}</div>${additionalNeeds(c).map(n => `<p><strong>${n.status === 'resolved' ? 'Archiviata' : 'Cerca'}:</strong> ${esc(n.text)}</p>`).join('')}${c.presentation ? `<details class="rs-original"><summary>Testo originale</summary><p>${esc(c.presentation)}</p></details>` : ''}${c.authorId === user.id ? '<button type="button" class="rs-text-btn" data-action="edit">Modifica i tuoi appunti</button>' : ''}</section>`).join('')}</div>`;
     if (p.phone) html += `<div class="rs-tag-group"><span class="rs-tag-label">Telefono</span><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`;
     html += '</div></details>';
   }
@@ -619,6 +638,7 @@ function openForm(kind) {
   if (kind !== 'new' && !p) return;
   mode = kind; form.dataset.mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false; draftUndo = null; importedSuggestions = {};
   const own = kind === 'profile', relationOnly = kind === 'relation';
+  requestsEditor.setSelf(own);
   q('#rs-personal-share').hidden = !own;
   q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
   const close = q('#rs-close-form'); close.innerHTML = own ? icon('arrow-left') + 'Rete' : icon('x'); close.classList.toggle('rs-back', own); close.classList.toggle('rs-icon-btn', !own); close.setAttribute('aria-label', own ? 'Torna alla rete' : 'Chiudi modulo');
@@ -628,7 +648,7 @@ function openForm(kind) {
   q('#rs-help-label').textContent = own ? 'Per cosa possono coinvolgerti?' : 'Per cosa lo coinvolgeresti?';
   f.personHelp.dataset.offerSelf = String(own);
   f.personHelp.placeholder = 'Es. Siti e prenotazioni online per studi medici';
-  q('#rs-need-label').textContent = own ? 'Di cosa hai bisogno?' : 'Di cosa ha bisogno?';
+  q('#rs-need-label').textContent = own ? 'Cerco' : 'Cosa cerca?';
   q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Il tuo collegamento' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
   q('#rs-form-eyebrow').hidden = !relationOnly;
   q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
@@ -818,7 +838,8 @@ root.addEventListener('click', async e => {
     if (b.dataset.removeFilter) { filters[b.dataset.removeFilter] = ''; render(); return; }
     if (b.dataset.resolveNeed) {
       const key = b.dataset.needSource, id = b.dataset.resolveNeed;
-      if (data().contributions[key]?.authorId !== user.id) return;
+      const contribution = data().contributions[key];
+      if (!canCloseNeed(data().people[contribution?.personId], contribution, user.id)) return;
       sync.edit(d => { const c = d.contributions[key], needs = needsMap(c); if (needs[id]) { needs[id].status = 'resolved'; needs[id].updatedAt = new Date().toISOString(); c.needs = needs; d.schemaVersion = 2; } });
       scheduleSync(); return;
     }

@@ -7,7 +7,7 @@ import { personContactActions } from './contacts.js';
 import { hydrateIcons, icon } from './icons.js';
 const root = document.getElementById('rete-tag'), q = s => root.querySelector(s);
 const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const needsEditor = new NeedsEditor(q('#personal-needs-editor'));
+const needsEditor = new NeedsEditor(q('#personal-needs-editor'), { self: true });
 let saved = null, current = null;
 try { saved = loadPersonalCard(); } catch { q('#personal-status').textContent = 'Copia locale non disponibile. Puoi ricreare la tua scheda o aprire il link che hai conservato.'; }
 function edit(card = null) {

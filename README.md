@@ -4,13 +4,13 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
-## Esigenze multiple · 1.12.0
+## Esigenze multiple · 1.12.1
 
-**Cerco** contiene più esigenze indipendenti: introduzioni commerciali, spazi, professionisti, risorse o confronti. Nel profilo, nei contatti, nell’inserimento rapido e nei moduli condivisi, **Aggiungi esigenza** crea un’altra voce. Basta una frase; i tag sono facoltativi e distinti per voce. Massimo 20 esigenze conservate per scheda e autore.
+**Cerco** contiene più esigenze indipendenti: introduzioni commerciali, spazi, professionisti, risorse o confronti. Nel profilo, nei contatti, nell’inserimento rapido e nei moduli condivisi, **Aggiungi richiesta** crea un’altra voce. Le voci già inserite sono compatte: tocca la frase per modificarla. Il pulsante o Invio apre un campo per la successiva, senza creare righe vuote duplicate. Basta una frase; i tag sono facoltativi e distinti per voce. Massimo 20 esigenze conservate per scheda e autore.
 
-Ogni esigenza si modifica o rimuove separatamente. **Risolta** nella scheda la chiude con un tap; nel modulo è possibile riaprirla da **Risolte**. Le azioni nel modulo si confermano con il normale Salva. Le risolte restano nell’archivio e nelle esportazioni, mentre ricerca e condivisione usano soltanto quelle attive.
+Ogni esigenza si modifica o rimuove separatamente. **Non cerco più** riguarda esclusivamente le richieste del proprio profilo, anche se la scheda di un contatto è stata scritta da te. Le proprie richieste chiuse si ritrovano in **Non più cercate** e si riattivano con **Cerco ancora**. Per i contatti si correggono o rimuovono i propri appunti; le dichiarazioni ricevute restano separate. Eventuali appunti già chiusi con la versione precedente restano recuperabili in **Appunti archiviati**, senza essere riattivati automaticamente. Le azioni nel modulo si confermano con il normale Salva. Le risolte restano nell’archivio e nelle esportazioni, mentre ricerca e condivisione usano soltanto quelle attive.
 
-Cerca mostra le esigenze pertinenti senza duplicare la persona. La scheda completa mantiene tutte le esigenze attive, con provenienza e azioni di contatto riferite a ciascuna voce. WhatsApp, email e il messaggio al facilitatore riprendono l’esigenza scelta; nessun invio automatico.
+Cerca mostra le esigenze pertinenti senza duplicare la persona. La scheda completa mantiene tutte le esigenze attive, raggruppate per provenienza. I canali WhatsApp, email e LinkedIn compaiono una volta. **Ne parliamo** sulla singola richiesta apre il messaggio pertinente nel canale diretto disponibile; se serve il tramite, resta **Chiedi un’intro**. Nessun invio automatico.
 
 Il testo precedente resta una sola voce completa, senza divisioni automatiche. JSON conserva identificativi, tag, date e stato; CSV riporta anche le risolte. Le modifiche su esigenze diverse si uniscono, quelle sulla stessa voce richiedono confronto. I vecchi link restano leggibili e non possono cancellare una lista dichiarata più recente; appunti e risposte restano separati.
 
