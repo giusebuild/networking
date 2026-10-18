@@ -4,7 +4,7 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
-## Interfaccia · 1.13.0
+## Interfaccia · 1.13.1
 
 Componenti condivisi tra rete, profilo, inserimento rapido, finestre e schede pubbliche: pulsanti, campi, tag, filtri e azioni seguono la stessa scala. Nei moduli Offre e Cerca sono sezioni leggere con colori distinti. Il testo si espande durante la scrittura e all’apertura delle schede; i testi incollati lunghi mantengono un’area di lettura scorrevole. I tag hanno un comando esplicito, le azioni secondarie restano compatte e separate, le finestre mantengono la chiusura raggiungibile. I campi su telefono evitano lo zoom automatico al tocco. Nessuna modifica al formato dei dati, all’accesso o all’infrastruttura.
 
