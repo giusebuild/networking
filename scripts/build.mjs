@@ -10,7 +10,8 @@ const { version } = JSON.parse(await readFile(new URL('package.json', root), 'ut
 const modules = (await readdir(new URL('dist/src/', root))).filter(name => name.endsWith('.js'));
 for (const name of modules) {
   const path = new URL(`dist/src/${name}`, root);
-  const text = await readFile(path, 'utf8');
+  let text = await readFile(path, 'utf8');
+  if (name === 'shell-version.js') text = text.replace("const BUILD_VERSION = 'dev';", `const BUILD_VERSION = '${version}';`);
   await writeFile(path, text.replace(/(from\s+|import\s+)(['"])(\.\/[^'"?]+\.js)(?:\?[^'"]*)?\2/g, (_, prefix, quote, file) => `${prefix}${quote}${file}?v=${version}${quote}`));
 }
 for (const page of ['index.html', 'scheda.html', 'profilo.html']) {

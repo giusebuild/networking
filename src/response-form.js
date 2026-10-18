@@ -1,4 +1,5 @@
 import { mountTextareaSizes, refreshTextareaSizes } from './textarea-size.js';
+import { ensureShellVersion } from './shell-version.js';
 import { NeedsEditor } from './needs-editor.js';
 import { profileNeeds } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
@@ -10,6 +11,7 @@ import { hydrateIcons, icon } from './icons.js';
 import { makePersonalCard, personalCardLink, loadPersonalCard, rememberPersonalCard, sameProfile } from './personal-card.js';
 import { PROFILE_FIELDS } from './profile-card.js';
 
+await ensureShellVersion();
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
 const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

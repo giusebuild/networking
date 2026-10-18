@@ -1,4 +1,5 @@
 import { mountTextareaSizes } from './textarea-size.js';
+import { ensureShellVersion } from './shell-version.js';
 import { NeedsEditor } from './needs-editor.js';
 import { needEntries, needsMap, profileNeeds, canCloseNeed } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
@@ -19,6 +20,7 @@ import { encodeFormLink, decodeFormLink, responseTarget, responseCandidates, pre
 import { sharedLinkFragments, isShareRoute } from './share-links.js';
 import { normalizePhone, whatsappURL, parseVCards, personContactActions, normalizeEmail, mailtoURL } from './contacts.js';
 
+await ensureShellVersion();
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

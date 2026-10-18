@@ -1,4 +1,5 @@
 import { mountTextareaSizes } from './textarea-size.js';
+import { ensureShellVersion } from './shell-version.js';
 import { NeedsEditor } from './needs-editor.js';
 import { isShareRoute } from './share-links.js';
 import { profileNeeds } from './needs.js';
@@ -7,6 +8,7 @@ import { PROFILE_FIELDS } from './profile-card.js';
 import { makePersonalCard, personalCardLink, readPersonalCardLink, loadPersonalCard, rememberPersonalCard, forgetPersonalCard } from './personal-card.js';
 import { personContactActions } from './contacts.js';
 import { hydrateIcons, icon } from './icons.js';
+await ensureShellVersion();
 const root = document.getElementById('rete-tag'), q = s => root.querySelector(s);
 const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const needsEditor = new NeedsEditor(q('#personal-needs-editor'), { self: true });
