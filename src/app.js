@@ -340,7 +340,7 @@ async function shareRequest() {
 }
 q('#request-reply-input').addEventListener('input', () => { try { setRequestReturn(); q('#request-status').textContent = ''; } catch (error) { q('#request-status').textContent = error.message; } });
 for (const id of ['request-whatsapp', 'request-email']) q('#' + id).addEventListener('click', event => { try { rememberRequestReturn(); } catch (error) { event.preventDefault(); q('#request-status').textContent = error.message; } });
-function openPersonalCard() {
+async function openPersonalCard() {
   if (mode !== 'profile') return;
   const f = q('#rs-form').elements;
   const fields = { name: f.personName.value, role: f.personRole.value, help: f.personHelp.value, need: f.personNeed.value, phone: f.personPhone.value, email: f.personEmail.value, linkedin: f.personLinkedin.value };
@@ -350,7 +350,16 @@ function openPersonalCard() {
   const card = makePersonalCard(fields, saved?.id === id ? saved : null, { id });
   if (!member.profileCardId) { sync.edit(d => { d.members[user.id].profileCardId = id; }); scheduleSync(); }
   try { rememberPersonalCard(card); } catch { notice('Conserva il link: questo browser non ricorda la scheda personale.'); }
-  window.open(personalCardLink(card, window.location.href), '_blank', 'noopener,noreferrer');
+  const link = personalCardLink(card, window.location.href);
+  const input = q('#rs-personal-share-link'), status = q('#rs-personal-share-status');
+  input.value = link; q('#rs-personal-share-tools').hidden = false;
+  if (navigator.share) {
+    try { await navigator.share({ title: card.profile.name + ' · Tramite', text: 'Quando coinvolgermi e cosa cerco.', url: link }); status.textContent = 'Scheda condivisa. Puoi continuare qui o tornare alla rete.'; return; }
+    catch (error) { if (error.name === 'AbortError') { status.textContent = 'Condivisione annullata. Il link resta qui.'; return; } }
+  }
+  try { await navigator.clipboard.writeText(link); status.textContent = 'Link copiato. Incollalo nella conversazione.'; }
+  catch { input.focus(); input.select(); status.textContent = 'Copia il link e condividilo con chi vuoi.'; }
+
 }
 function incomingSelection() {
     const r = pendingCard?.profile || pendingResponse;
@@ -433,6 +442,7 @@ function resetUI() {
   q('#rs-search').value = '';
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
   for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error', '#request-prefill-copy', '#request-description', '#request-qr-error']) q(selector).textContent = '';
+  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
   q('#request-link').value = ''; q('#request-reply-input').value = ''; q('#response-existing').replaceChildren(); q('#paste-response-form').reset();
   for (const id of ['request-whatsapp', 'request-email']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
   q('#intro-message').value = '';
@@ -597,6 +607,8 @@ function openForm(kind) {
   mode = kind; form.dataset.mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false; draftUndo = null; importedSuggestions = {};
   const own = kind === 'profile', relationOnly = kind === 'relation';
   q('#rs-personal-share').hidden = !own;
+  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
+  const close = q('#rs-close-form'); close.innerHTML = own ? icon('arrow-left') + 'Rete' : icon('x'); close.classList.toggle('rs-back', own); close.classList.toggle('rs-icon-btn', !own); close.setAttribute('aria-label', own ? 'Torna alla rete' : 'Chiudi modulo');
   q('#rs-extra').open = false; q('#rs-relation-details').open = relationOnly; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
   q('#rs-form-relation').hidden = own || kind === 'edit';
@@ -816,7 +828,7 @@ root.addEventListener('click', async e => {
       const svg = requestQR; rememberRequestReturn();
       try { download(await qrPNG(svg), 'tramite-invito.png', 'image/png'); } catch { download(svg, 'tramite-invito.svg', 'image/svg+xml'); } return;
     }
-    if (a === 'personal-card') { openPersonalCard(); return; }
+    if (a === 'personal-card') { await openPersonalCard(); return; }
     if (a === 'copy-request') { await copyRequest(); return; }
     if (a === 'paste-response') { q('#settings-dialog').close(); if (pendingResponse || pendingCard) reviewResponse(); else { q('#paste-response-error').textContent = ''; showDialog('#paste-response-dialog'); } return; }
     if (a === 'discard-response') { clearResponse(); return; }
@@ -839,7 +851,7 @@ root.addEventListener('click', async e => {
     if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
     if (a === 'edit') openForm(selected === ownPersonId() ? 'profile' : 'edit');
     if (a === 'relation') openForm('relation');
-    if (a === 'cancel') { closeForm(); render(); selected ? focusDetail() : q('#rs-add').focus(); }
+    if (a === 'cancel') { const own = mode === 'profile'; closeForm(); if (own) selected = null; render(); selected ? focusDetail() : q('#rs-add').focus(); if (own) window.scrollTo?.({ top: 0, behavior: 'instant' }); }
     if (a === 'close') closeDetail();
     if (a === 'clear') { clearFilters(); render(); }
     if (a === 'clear-search') { search = ''; q('#rs-search').value = ''; render(); q('#rs-search').focus(); }

@@ -261,3 +261,10 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{cursor:
 #rete-tag .rs-form[data-mode="relation"] #rs-save{width:100%;min-height:48px;font-size:15px;border-radius:14px}
 @media(max-width:480px){#rete-tag .rs-form[data-mode="relation"] .rs-form-card{padding:20px 16px;border-radius:20px}#rete-tag .rs-relation-fields .rs-field{font-size:16px}#rete-tag .rs-relation-basics{grid-template-columns:minmax(0,1fr) 78px;gap:10px}#rete-tag #rs-level-choices .rs-choice{padding:11px 10px;gap:8px}}
 @media(prefers-reduced-motion:reduce){#rete-tag .rs-relation-summary>.rs-icon{transition:none}}
+
+/* Share in place so the network remains within reach. */
+#rete-tag .rs-share-tools{display:grid;gap:8px;padding:16px;background:var(--rs-tint);border-radius:14px;margin-bottom:18px}
+#rete-tag .rs-share-tools .rs-field{font-size:12px}
+#rete-tag .rs-public-back{display:inline-flex;align-items:center;gap:6px;color:var(--rs-accent);text-decoration:none;min-height:44px;flex-shrink:0}
+#rete-tag.rs-public-form .rs-top{position:sticky;top:0;z-index:5;background:var(--rs-bg)}
+#rete-tag #rs-close-form.rs-back{flex-shrink:0;min-height:44px}

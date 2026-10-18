@@ -8,7 +8,7 @@ const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 let saved = null, current = null;
 try { saved = loadPersonalCard(); } catch { q('#personal-status').textContent = 'Copia locale non disponibile. Puoi ricreare la tua scheda o aprire il link che hai conservato.'; }
 function edit(card = null) {
-  current = card;
+  current = card; q('#personal-cancel').hidden = !card;
   for (const k of Object.keys(PROFILE_FIELDS)) q('#personal-form').elements[k].value = card?.profile[k] || '';
   refreshOfferGuidance(root);
   q('#personal-view').hidden = true; q('#personal-editor').hidden = false; q('#personal-form').elements.name.focus();
@@ -47,6 +47,7 @@ q('#personal-form').addEventListener('submit', event => {
     window.scrollTo?.({ top: 0 });
   } catch (error) { q('#personal-status').textContent = error.message; }
 });
+q('#personal-cancel').addEventListener('click', () => { if (current) view(current); });
 q('#personal-edit').addEventListener('click', () => edit(current));
 q('#personal-new').addEventListener('click', () => { q('#personal-status').textContent = ''; edit(saved); });
 q('#personal-copy').addEventListener('click', async () => {
