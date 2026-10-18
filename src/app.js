@@ -118,7 +118,7 @@ function loginScreen() {
   q('#unlock-form').hidden = !accounts.length; q('#login-form').hidden = !!accounts.length;
   q('#unlock-form').elements.account.innerHTML = accounts.map(a => `<option value="${esc(a.id)}">@${esc(a.login)}</option>`).join('');
   updateUnlockForm();
-  q('#auth-error').textContent = ''; hydrateIcons(root);
+  q('#auth-error').textContent = '';
   if (!accounts.length && !joinGuideShown && window.location?.hash === '#join') { joinGuideShown = true; openAccessGuide('guest'); }
 }
 function updateUnlockForm() {
@@ -922,5 +922,7 @@ async function applyAppUpdate() {
   await updater.apply();
 }
 window.addEventListener('hashchange', readResponseRoute);
+// The remembered session skips loginScreen; every entry path needs the shell icons.
+hydrateIcons(root);
 await restoreRememberedAccess();
 readResponseRoute();
