@@ -1,5 +1,6 @@
 import { SmartTags } from './smart-tags.js';
 import { icon } from './icons.js';
+import { refreshTextareaSizes } from './textarea-size.js';
 import { MAX_NEEDS, needsMap, profileNeeds, declaredNeeds, validateNeeds } from './needs.js';
 
 const placeholders = ['Es. Uno studio a Cagliari due pomeriggi a settimana', 'Es. Presentazioni a titolari di studi medici', 'Es. Un videomaker con cui collaborare'];
@@ -59,7 +60,7 @@ export class NeedsEditor {
     }
     const count = this.rows.filter(r => r.status === 'resolved').length; this.resolved.hidden = !count;
     this.resolved.querySelector('.rs-needs-archive-label').textContent = this.canClose ? 'Non più cercate' : 'Appunti archiviati'; this.resolved.querySelector('.rs-needs-archive-count').textContent = count;
-    this.addButton.disabled = this.rows.filter(r => r.input.value.trim()).length >= MAX_NEEDS; this.arrangeLabels();
+    this.addButton.disabled = this.rows.filter(r => r.input.value.trim()).length >= MAX_NEEDS; this.arrangeLabels(); refreshTextareaSizes(this.root);
   }
   next() {
     let row = this.rows.find(r => r.status === 'active' && !r.input.value.trim());

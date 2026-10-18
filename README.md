@@ -4,7 +4,11 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
-## Esigenze multiple · 1.12.1
+## Interfaccia · 1.13.0
+
+Componenti condivisi tra rete, profilo, inserimento rapido, finestre e schede pubbliche: pulsanti, campi, tag, filtri e azioni seguono la stessa scala. Nei moduli Offre e Cerca sono sezioni leggere con colori distinti. Il testo si espande durante la scrittura e all’apertura delle schede; i testi incollati lunghi mantengono un’area di lettura scorrevole. I tag hanno un comando esplicito, le azioni secondarie restano compatte e separate, le finestre mantengono la chiusura raggiungibile. I campi su telefono evitano lo zoom automatico al tocco. Nessuna modifica al formato dei dati, all’accesso o all’infrastruttura.
+
+## Esigenze multiple
 
 **Cerco** contiene più esigenze indipendenti: introduzioni commerciali, spazi, professionisti, risorse o confronti. Nel profilo, nei contatti, nell’inserimento rapido e nei moduli condivisi, **Aggiungi richiesta** crea un’altra voce. Le voci già inserite sono compatte: tocca la frase per modificarla. Il pulsante o Invio apre un campo per la successiva, senza creare righe vuote duplicate. Basta una frase; i tag sono facoltativi e distinti per voce. Massimo 20 esigenze conservate per scheda e autore.
 

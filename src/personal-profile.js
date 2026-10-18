@@ -1,3 +1,4 @@
+import { mountTextareaSizes } from './textarea-size.js';
 import { NeedsEditor } from './needs-editor.js';
 import { profileNeeds } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
@@ -70,3 +71,5 @@ q('#personal-forget').addEventListener('click', () => {
 });
 hydrateIcons(root);
 mountOfferGuidance(root);
+
+mountTextareaSizes(root);

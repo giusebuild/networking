@@ -1,3 +1,4 @@
+import { mountTextareaSizes } from './textarea-size.js';
 import { NeedsEditor } from './needs-editor.js';
 import { needEntries, needsMap, profileNeeds, canCloseNeed } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
@@ -538,7 +539,7 @@ function detail(p) {
   html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}</div></div></div>`;
   html += `<section class="rs-reach"><h3>${own ? 'Come contattarti' : 'Come contattarlo'}</h3>${contactActionsHTML(p)}</section>`;
   const source = c => c.reported ? 'Dalla scheda compilata' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
-  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
+  html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}Tag</button>` : ''}</div></section>`;
   const requests = visibleRequests(p, true), ownNotes = ownContribution(p);
   if (requests.length || editable) html += `<section class="rs-person-need"><div class="rs-needs-heading"><h3 class="rs-intent-label">${icon('search')}${own ? 'Cerco' : 'Cerca'}</h3>${editable ? `<button type="button" class="rs-text-btn rs-needs-edit" data-edit-field="personNeed" aria-label="${own ? 'Modifica le tue richieste' : 'Modifica le richieste annotate da te'}">${icon(needEntries(ownNotes).length ? 'pencil' : 'plus')}${own ? needEntries(ownNotes).length ? 'Modifica' : 'Aggiungi' : needEntries(ownNotes).length ? 'Appunti' : 'Aggiungi appunto'}</button>` : ''}</div>${needsHTML(p, requests)}</section>`;
 
@@ -649,6 +650,7 @@ function openForm(kind) {
   f.personHelp.dataset.offerSelf = String(own);
   f.personHelp.placeholder = 'Es. Siti e prenotazioni online per studi medici';
   q('#rs-need-label').textContent = own ? 'Cerco' : 'Cosa cerca?';
+  q('#rs-contact-label').textContent = own ? 'Come contattarti' : 'Come contattarlo';
   q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Il tuo collegamento' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
   q('#rs-form-eyebrow').hidden = !relationOnly;
   q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
@@ -971,3 +973,5 @@ hydrateIcons(root);
 mountOfferGuidance(root);
 await restoreRememberedAccess();
 readResponseRoute();
+
+mountTextareaSizes(root);

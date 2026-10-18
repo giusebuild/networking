@@ -1,3 +1,4 @@
+import { refreshTextareaSizes } from './textarea-size.js';
 // Optional writing prompts. They never rewrite the offer or claim a skill.
 export function offerGuidance(value, self = false) {
   const text = String(value || '').trim();
@@ -14,6 +15,7 @@ export function refreshOfferGuidance(root) {
     hint.textContent = offerGuidance(input.value, input.dataset.offerSelf === 'true');
     hint.hidden = !hint.textContent;
   }
+  refreshTextareaSizes(root);
 }
 export function mountOfferGuidance(root) {
   root.addEventListener('input', event => { if (event.target.matches('[data-offer-hint]')) refreshOfferGuidance(root); });

@@ -1,3 +1,4 @@
+import { mountTextareaSizes } from './textarea-size.js';
 import { NeedsEditor } from './needs-editor.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { decodeFormLink, encodeFormLink } from './profile-requests.js';
@@ -84,3 +85,5 @@ async function copyResponse() {
 q('#response-copy').addEventListener('click', copyResponse);
 hydrateIcons(document);
 mountOfferGuidance(root);
+
+mountTextareaSizes(root);

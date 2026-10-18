@@ -1,5 +1,6 @@
 import { CATALOG, suggestedTags, needTags } from './profile.js';
 import { tagKey as norm, uniqueTags, tagEntries } from './tags.js';
+import { icon } from './icons.js';
 const keys = ['skills', 'markets', 'interests'];
 const labels = { skills: 'Competenza', markets: 'Settore', interests: 'Interesse' };
 const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7,7 +8,7 @@ const blank = () => Object.fromEntries(keys.map(k => [k, []]));
 export class SmartTags {
   constructor(root, intent = 'offer') {
     this.root = root; this.intent = intent;
-    root.innerHTML = `<div class="rs-smart-row"><div class="rs-smart-selected" aria-label="${intent === 'need' ? 'Tag della richiesta' : 'Tag del contributo'}"></div><button type="button" class="rs-add-tag rs-smart-toggle" aria-label="Aggiungi o modifica tag" aria-expanded="false">+</button></div><div class="rs-smart-add" hidden><input type="text" maxlength="80" autocomplete="off" placeholder="Aggiungi un tag…" aria-label="Nuovo tag ${intent === 'need' ? 'della richiesta' : 'del contributo'}"><select aria-label="Tipo di tag"><option value="">Automatico</option><option value="skills">Competenza</option><option value="markets">Settore</option>${intent === 'offer' ? '<option value="interests">Interesse</option>' : ''}</select><button type="button" class="rs-btn rs-smart-commit">Aggiungi</button></div><span class="rs-tag-error" role="status"></span>`;
+    root.innerHTML = `<div class="rs-smart-row"><div class="rs-smart-selected" aria-label="${intent === 'need' ? 'Tag della richiesta' : 'Tag del contributo'}"></div><button type="button" class="rs-add-tag rs-smart-toggle" aria-label="Aggiungi o modifica tag" aria-expanded="false">${icon('plus')}<span>Aggiungi tag</span></button></div><div class="rs-smart-add" hidden><input type="text" maxlength="80" autocomplete="off" placeholder="Aggiungi un tag…" aria-label="Nuovo tag ${intent === 'need' ? 'della richiesta' : 'del contributo'}"><select aria-label="Tipo di tag"><option value="">Automatico</option><option value="skills">Competenza</option><option value="markets">Settore</option>${intent === 'offer' ? '<option value="interests">Interesse</option>' : ''}</select><button type="button" class="rs-btn rs-smart-commit">Aggiungi</button></div><span class="rs-tag-error" role="status"></span>`;
     this.input = root.querySelector('input'); this.set();
     root.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -37,6 +38,7 @@ export class SmartTags {
   }
   render() {
     const values = this.values;
+    this.root.querySelector('.rs-smart-toggle span').textContent = tagEntries(values).length ? 'Tag' : 'Aggiungi tag';
     this.root.querySelector('.rs-smart-selected').innerHTML = tagEntries(values).map(({ value, categories }) => `<button type="button" class="rs-selected-chip" data-smart-key="${categories[0]}" data-smart-value="${esc(value)}" title="${categories.map(k => labels[k]).join(' · ')}" aria-label="Rimuovi tag: ${esc(value)}">${esc(value)}<span aria-hidden="true">×</span></button>`).join('');
   }
 }
