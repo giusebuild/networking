@@ -18,9 +18,9 @@ test('a reply is readable in chat and the whole copied message opens the exact p
   const value = reply(), link = encodeFormLink(value, base), message = responseMessage(value, link);
   assert.ok(message.includes(value.name)); assert.ok(message.includes(value.help));
   for (const n of value.needs) assert.ok(message.includes('• ' + n.text));
-  assert.ok(message.includes(value.email)); assert.ok(message.endsWith(link));
+  assert.ok(message.includes(value.email)); assert.ok(message.startsWith(link + '\n'));
   assert.deepEqual(decodeFormLink(message, 'response'), value);
-  assert.doesNotMatch(message.slice(0, message.indexOf(link)), /authorId|requestId|responseId/);
+  assert.doesNotMatch(message.slice(link.length), /authorId|requestId|responseId/);
 });
 
 test('copying punctuation, Markdown or a message header does not break the received link', () => {

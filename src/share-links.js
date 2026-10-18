@@ -4,18 +4,20 @@
 const MAX_MESSAGE = 120000;
 const MAX_PAYLOAD = 26000;
 const missing = () => new Error('Non trovo una scheda Tramite. Incolla il link o il messaggio ricevuto completo.');
-function transportVariants(input) {
-  let text = input.trim().replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+export function transportVariants(input) {
+  let text = input.trim().replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '');
   const variants = new Set([text]);
   for (let i = 0; i < 2; i++) {
     text = text.replace(/(?:%[a-f\d]{2})+/gi, encoded => { try { return decodeURIComponent(encoded); } catch { return encoded; } });
     variants.add(text);
   }
+  for (const value of [...variants]) variants.add(value.replace(/-\r?\n[ \t]*/g, ''));
   return variants;
 }
 export function isShareRoute(hash, markers) {
   if (typeof hash !== 'string' || !hash.startsWith('#')) return false;
-  return [...transportVariants(hash.slice(0, MAX_MESSAGE))].some(text => new RegExp(`^#+(?:${markers.join('|')})\\s*=`).test(text));
+  const short = { response: 'r', card: 'c', invite: 'v', i: 'i' };
+  return [...transportVariants(hash.slice(0, MAX_MESSAGE))].some(text => new RegExp(`^#+(?:${markers.join('|')})\\s*=`).test(text) || new RegExp(`^#+/?(?:${markers.map(k => short[k]).join('|')})/(?:z|u)/`).test(text));
 }
 
 export function sharedLinkFragments(input, markers) {

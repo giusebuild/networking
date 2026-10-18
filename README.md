@@ -4,9 +4,19 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
+## Condivisione in chat · 1.15.0
+
+I link di inviti, risposte e schede personali usano ora un formato compresso con segmenti brevi. Il link apre il messaggio, seguito dalla scheda leggibile. I dati condivisi restano nel frammento del link: non occorre un servizio esterno per recuperarli.
+
+Per evitare messaggi con URL smisurati, le risposte e le schede personali sopra la soglia di 1.800 caratteri usano **Condividi file** o **Scarica scheda**. È una soglia prudenziale del prodotto, non un limite ufficiale di WhatsApp. **Invia come file** resta disponibile anche per le schede brevi se il client di chat non riconosce il link. Il file `.tramite.json` contiene soltanto la scheda condivisa e i suoi riferimenti, non l’archivio o le credenziali.
+
+Chi riceve il file usa **Apri una scheda ricevuta → Apri file**: legge l’anteprima e conferma. La selezione non carica il file su un servizio esterno e non aggiunge dati prima della conferma. La riconoscibilità dei link dipende anche dall’app di messaggistica; la condivisione del file evita tale dipendenza.
+
+Per inviti con una bozza troppo lunga si condividono nome e recapiti: **Bozza condivisa** mostra esattamente ciò che riceve la persona e segnala l’alleggerimento. Offre, Cerca e gli appunti originali restano nell’archivio del team. I link precedenti rimangono leggibili, anche copiando un intero messaggio con ritorni a capo o trattini di impaginazione. Un link troncato non importa una scheda parziale.
+
 ## Compila, invia, aggiungi · 1.14.2
 
-Chi compila sceglie **Rivedi e invia**, controlla la scheda in chiaro e usa **Invia su WhatsApp**, **Invia via email**, condivisione o copia del messaggio. Il messaggio contiene nome, offerta, richieste e recapiti leggibili, seguiti dal link per aprire la scheda nell’app. L’invio si conclude nella propria app di messaggi.
+Chi compila sceglie **Rivedi e invia**, controlla la scheda in chiaro e usa **Invia su WhatsApp**, **Invia via email**, condivisione o copia del messaggio. Il messaggio contiene nome, offerta, richieste e recapiti leggibili, con il link all’inizio per aprire la scheda nell’app. L’invio si conclude nella propria app di messaggi.
 
 All’apertura, un controllo mantiene pagina e script della stessa versione anche quando una cache restituisce file di rilasci diversi. Il link ricevuto rimane intatto. Aprendo un altro invito o un’altra scheda nello stesso tab, la pagina carica il nuovo destinatario e i nuovi riferimenti.
 

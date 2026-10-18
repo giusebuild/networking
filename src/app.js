@@ -18,6 +18,7 @@ import { qrSVG, qrPNG } from './qr.js';
 import { makePersonalCard, personalCardLink, readPersonalCardLink, loadPersonalCard, rememberPersonalCard, personalCardCandidates, personalCardTarget, applyPersonalCard } from './personal-card.js';
 import { encodeFormLink, decodeFormLink, responseTarget, responseCandidates, prepareProfileInvitation, profileInvitation, applyProfileResponse } from './profile-requests.js';
 import { sharedLinkFragments, isShareRoute } from './share-links.js';
+import { compactShareLink, expandShareText, CHAT_LINK_LIMIT, makeShareFile, canShareFile, downloadShareFile, readShareFile } from './share-transport.js';
 import { normalizePhone, whatsappURL, parseVCards, personContactActions, normalizeEmail, mailtoURL } from './contacts.js';
 
 await ensureShellVersion();
@@ -37,7 +38,7 @@ const quickOfferTags = new SmartTags(q('#quick-tags'));
 const quickRequestsEditor = new NeedsEditor(q('#quick-needs-editor'));
 let quickHelpEdited = false, quickNeedEdited = false, contactChoices = [], introPhone = '';
 let pendingResponse = null, pendingCard = null, responseBase = null, requestInvitation = null, requestContact = null, requestQR = '';
-let qrTimer;
+let qrTimer, requestLinkRevision = 0;
 let incomingError = '';
 
 const data = () => sync.local;
@@ -305,18 +306,29 @@ async function requestProfile(personId = selected) {
   q('#request-reply-input').value = ''; q('#request-reply-input').setCustomValidity('');
   q('#request-share').hidden = !navigator.share;
   q('#request-status').textContent = demo ? 'Demo: nessun salvataggio su GitHub.' : '';
-  updateRequestLinks(); showDialog('#request-dialog');
+  await updateRequestLinks(); showDialog('#request-dialog');
 }
-function updateRequestLinks() {
+async function updateRequestLinks() {
   if (!requestInvitation) return;
-  const link = encodeFormLink(requestInvitation, window.location.href);
+  const revision = ++requestLinkRevision;
+  clearTimeout(qrTimer); requestQR = ''; q('#request-qr').replaceChildren(); q('#request-qr-download').hidden = true;
+  q('#request-whatsapp').hidden = q('#request-email').hidden = true;
+  let shared = clone(requestInvitation), link = await compactShareLink(encodeFormLink(shared, window.location.href));
+  const reduced = link.length > CHAT_LINK_LIMIT;
+  if (reduced) {
+    shared.prefill = { ...shared.prefill, help: '', need: '', ...(shared.v === 3 ? { needs: [] } : {}) };
+    link = await compactShareLink(encodeFormLink(shared, window.location.href));
+  }
+  if (link.length > CHAT_LINK_LIMIT) throw new Error('La bozza è troppo lunga per un invito. Usa Fai compilare la scheda per inviare un modulo vuoto.');
+  if (revision !== requestLinkRevision) return;
+  q('#request-prefill-copy').textContent = [shared.prefill.name, shared.prefill.help, ...profileNeeds(shared.prefill).map(n => 'Cerca: ' + n.text), reduced ? 'Bozza alleggerita per la chat: Offre e Cerca saranno compilati dalla persona. I tuoi appunti restano intatti.' : ''].filter(Boolean).join('\n');
   q('#request-link').value = link;
   clearTimeout(qrTimer); requestQR = ''; q('#request-qr').replaceChildren(); q('#request-qr-download').hidden = true;
   qrTimer = setTimeout(() => {
     try { requestQR = qrSVG(link); q('#request-qr').innerHTML = requestQR; q('#request-qr-download').hidden = false; q('#request-qr-error').textContent = ''; }
     catch (error) { q('#request-qr-error').textContent = error.message; }
   }, 100);
-  const message = requestContact ? `Ciao ${requestContact.name}, ho preparato una bozza della tua scheda. Puoi confermare o aggiungere qualcosa? ${link}` : `Quando possiamo coinvolgerti e cosa cerchi? Compila la tua scheda: ${link}`;
+  const message = link + '\n\n' + (requestContact ? `Ciao ${requestContact.name}, puoi confermare o completare la tua scheda?` : 'Quando possiamo coinvolgerti e cosa cerchi? Compila la tua scheda.');
   q('#request-whatsapp').hidden = !requestContact?.phone; q('#request-email').hidden = !requestContact?.email;
   if (requestContact?.phone) q('#request-whatsapp').href = whatsappURL(requestContact.phone, message);
   if (requestContact?.email) q('#request-email').href = mailtoURL(requestContact.email, 'La tua scheda · Tramite', message);
@@ -327,7 +339,7 @@ function setRequestReturn() {
   const value = q('#request-reply-input').value.trim();
   requestInvitation.replyPhone = value && !value.includes('@') ? normalizePhone(value) : '';
   requestInvitation.replyEmail = value.includes('@') ? normalizeEmail(value) : '';
-  q('#request-reply-input').setCustomValidity(''); updateRequestLinks();
+  q('#request-reply-input').setCustomValidity('');
 }
 function rememberRequestReturn() {
   setRequestReturn();
@@ -338,16 +350,17 @@ function rememberRequestReturn() {
   }
 }
 async function copyRequest() {
-  rememberRequestReturn(); const input = q('#request-link');
+  rememberRequestReturn(); await updateRequestLinks(); const input = q('#request-link');
   try { await navigator.clipboard.writeText(input.value); q('#request-status').textContent = 'Copiato. Invialo nella vostra conversazione.'; }
   catch { input.focus(); input.select(); q('#request-status').textContent = 'Copia il link selezionato.'; }
 }
 async function shareRequest() {
-  rememberRequestReturn(); const { link } = updateRequestLinks();
+  rememberRequestReturn(); const prepared = await updateRequestLinks(); if (!prepared) return;
+  const { link } = prepared;
   try { await navigator.share({ title: 'La tua scheda · Tramite', text: 'Quando possiamo coinvolgerti e cosa cerchi? Conferma o completa la tua scheda.', url: link }); q('#request-status').textContent = 'Link condiviso.'; }
   catch (error) { if (error.name !== 'AbortError') { q('#request-share').hidden = true; q('#request-status').textContent = 'Usa WhatsApp, email o Copia link.'; } }
 }
-q('#request-reply-input').addEventListener('input', () => { try { setRequestReturn(); q('#request-status').textContent = ''; } catch (error) { q('#request-status').textContent = error.message; } });
+q('#request-reply-input').addEventListener('input', async () => { try { setRequestReturn(); await updateRequestLinks(); q('#request-status').textContent = ''; } catch (error) { q('#request-status').textContent = error.message; } });
 for (const id of ['request-whatsapp', 'request-email']) q('#' + id).addEventListener('click', event => { try { rememberRequestReturn(); } catch (error) { event.preventDefault(); q('#request-status').textContent = error.message; } });
 async function openPersonalCard() {
   if (mode !== 'profile') return;
@@ -359,9 +372,22 @@ async function openPersonalCard() {
   const card = makePersonalCard(fields, saved?.id === id ? saved : null, { id });
   if (!member.profileCardId) { sync.edit(d => { d.members[user.id].profileCardId = id; }); scheduleSync(); }
   try { rememberPersonalCard(card); } catch { notice('Conserva il link: questo browser non ricorda la scheda personale.'); }
-  const link = personalCardLink(card, window.location.href);
+  const originalLink = personalCardLink(card, window.location.href), link = await compactShareLink(originalLink);
+  if (mode !== 'profile') return;
   const input = q('#rs-personal-share-link'), status = q('#rs-personal-share-status');
   input.value = link; q('#rs-personal-share-tools').hidden = false;
+  if (link.length > CHAT_LINK_LIMIT) {
+    const file = makeShareFile(originalLink, card.profile.name);
+    input.hidden = true; input.closest('label').hidden = true;
+    q('#rs-personal-share-file').hidden = false;
+    q('#rs-personal-share-file').onclick = () => { downloadShareFile(file); status.textContent = 'Allega il file nella conversazione. Chi lo riceve usa Apri una scheda ricevuta → Apri file.'; };
+    try {
+      if (canShareFile(file)) { await navigator.share({ files: [file], title: card.profile.name + ' · Tramite' }); status.textContent = 'Completa l’invio del file nella conversazione.'; }
+      else { downloadShareFile(file); status.textContent = 'Scheda lunga: file scaricato. Allegalo alla conversazione; chi lo riceve usa Apri una scheda ricevuta → Apri file.'; }
+    } catch (error) { status.textContent = error.name === 'AbortError' ? 'Condivisione annullata. Puoi scaricare il file qui.' : 'Scarica il file e allegalo alla conversazione.'; }
+    return;
+  }
+  input.hidden = false; input.closest('label').hidden = false; q('#rs-personal-share-file').hidden = true;
   if (navigator.share) {
     try { await navigator.share({ title: card.profile.name + ' · Tramite', text: 'Quando coinvolgermi e cosa cerco.', url: link }); status.textContent = 'Scheda condivisa. Puoi continuare qui o tornare alla rete.'; return; }
     catch (error) { if (error.name === 'AbortError') { status.textContent = 'Condivisione annullata. Il link resta qui.'; return; } }
@@ -399,7 +425,8 @@ function clearResponse() {
   q('#response-review').replaceChildren(); q('#response-target').textContent = ''; q('#response-review-error').textContent = '';
   if (isShareRoute(window.location.hash, ['response', 'card'])) window.history.replaceState(null, '', window.location.pathname + window.location.search);
 }
-function readIncomingLink(value) {
+async function readIncomingLink(value) {
+  value = await expandShareText(value);
   const fragments = sharedLinkFragments(value, ['card', 'response']);
   if (new Set(fragments.map(f => f.marker)).size > 1) throw new Error('Ci sono più schede nel messaggio. Incollane una alla volta.');
   if (fragments[0].marker === 'card') { pendingCard = readPersonalCardLink(value); pendingResponse = null; }
@@ -409,14 +436,21 @@ function readIncomingLink(value) {
   q('#auth-incoming').textContent = `Scheda di ${profile.name} ricevuta. Accedi alla tua rete per rivederla e aggiungerla.`;
   q('#auth-incoming').hidden = false;
 }
-function readResponseRoute() {
+async function readResponseRoute() {
   if (!isShareRoute(window.location.hash, ['response', 'card'])) return;
-  try { readIncomingLink(window.location.hash); if (sync) reviewResponse(); }
+  try { await readIncomingLink(window.location.hash); if (sync) reviewResponse(); }
   catch (error) { incomingError = error.message; if (sync) notice(error.message); else q('#auth-error').textContent = error.message; }
 }
-q('#paste-response-form').addEventListener('submit', event => {
+q('#paste-response-form').addEventListener('submit', async event => {
   event.preventDefault();
-  try { readIncomingLink(event.currentTarget.elements.link.value.trim()); incomingSelection(); q('#paste-response-dialog').close(); event.currentTarget.reset(); reviewResponse(); }
+  const form = event.currentTarget;
+  try { await readIncomingLink(form.elements.link.value.trim()); incomingSelection(); q('#paste-response-dialog').close(); form.reset(); reviewResponse(); }
+  catch (error) { q('#paste-response-error').textContent = error.message; }
+});
+q('#profile-response-file').addEventListener('change', async event => {
+  const input = event.currentTarget, file = input.files?.[0]; input.value = '';
+  if (!file) return;
+  try { await readIncomingLink(await readShareFile(file)); incomingSelection(); q('#paste-response-dialog').close(); reviewResponse(); }
   catch (error) { q('#paste-response-error').textContent = error.message; }
 });
 q('#response-dialog').addEventListener('cancel', clearResponse);
@@ -459,13 +493,13 @@ function saveQuickPerson(e) {
 function resetUI() {
   selected = null; mode = null; formBase = null; editingId = null; search = '';
   incomingError = ''; q('#auth-incoming').hidden = true; q('#auth-incoming').textContent = '';
-  pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null; pendingResponse = pendingCard = null; responseBase = null; requestInvitation = requestContact = null; requestQR = ''; clearTimeout(qrTimer); q('#request-qr').replaceChildren();
+  pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null; pendingResponse = pendingCard = null; responseBase = null; requestInvitation = requestContact = null; requestQR = ''; requestLinkRevision++; clearTimeout(qrTimer); q('#request-qr').replaceChildren();
   quickDraft = null; quickNameEdited = false; quickHomonym = false;
   filters = emptyFilters();
   q('#rs-search').value = '';
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
   for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error', '#request-prefill-copy', '#request-description', '#request-qr-error']) q(selector).textContent = '';
-  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
+  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-file').onclick = null; q('#rs-personal-share-file').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
   q('#request-link').value = ''; q('#request-reply-input').value = ''; q('#response-existing').replaceChildren(); q('#paste-response-form').reset();
   for (const id of ['request-whatsapp', 'request-email']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
   q('#intro-message').value = '';
@@ -659,7 +693,7 @@ function openForm(kind) {
   const own = kind === 'profile', relationOnly = kind === 'relation';
   requestsEditor.setSelf(own);
   q('#rs-personal-share').hidden = !own;
-  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
+  q('#rs-personal-share-tools').hidden = true; q('#rs-personal-share-file').onclick = null; q('#rs-personal-share-file').hidden = true; q('#rs-personal-share-link').value = ''; q('#rs-personal-share-status').textContent = '';
   const close = q('#rs-close-form'); close.innerHTML = own ? icon('arrow-left') + 'Rete' : icon('x'); close.classList.toggle('rs-back', own); close.classList.toggle('rs-icon-btn', !own); close.setAttribute('aria-label', own ? 'Torna alla rete' : 'Chiudi modulo');
   q('#rs-extra').open = false; q('#rs-relation-details').open = relationOnly; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
   q('#rs-basics').hidden = relationOnly; q('#rs-more').hidden = relationOnly; q('#rs-quick-start').hidden = relationOnly;
@@ -887,10 +921,11 @@ root.addEventListener('click', async e => {
     if (a === 'share-request') { await shareRequest(); return; }
     if (a === 'download-request-qr') {
       if (!requestQR) return;
-      const svg = requestQR; rememberRequestReturn();
+      rememberRequestReturn(); await updateRequestLinks(); const svg = requestQR || qrSVG(q('#request-link').value);
       try { download(await qrPNG(svg), 'tramite-invito.png', 'image/png'); } catch { download(svg, 'tramite-invito.svg', 'image/svg+xml'); } return;
     }
     if (a === 'personal-card') { await openPersonalCard(); return; }
+    if (a === 'choose-profile-file') { q('#profile-response-file').click(); return; }
     if (a === 'copy-request') { await copyRequest(); return; }
     if (a === 'paste-response') { q('#settings-dialog').close(); if (pendingResponse || pendingCard) reviewResponse(); else { q('#paste-response-error').textContent = ''; showDialog('#paste-response-dialog'); } return; }
     if (a === 'discard-response') { clearResponse(); return; }
@@ -989,7 +1024,7 @@ window.addEventListener('hashchange', readResponseRoute);
 // The remembered session skips loginScreen; every entry path needs the shell icons.
 hydrateIcons(root);
 mountOfferGuidance(root);
-readResponseRoute();
+await readResponseRoute();
 await restoreRememberedAccess();
 
 mountTextareaSizes(root);

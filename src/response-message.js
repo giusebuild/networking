@@ -9,6 +9,6 @@ export function responseMessage(profile, link = '') {
   if (needs.length) sections.push('Cerco\n' + needs.map(n => '• ' + n.text).join('\n'));
   const contacts = [profile.email, profile.phone, profile.linkedin].filter(Boolean);
   if (contacts.length) sections.push('Come contattarmi\n' + contacts.join('\n'));
-  if (link) sections.push('Apri la scheda in Tramite e aggiungila alla rete:\n' + link);
+  if (link) sections.unshift(link + '\nApri la scheda in Tramite');
   return sections.join('\n\n');
 }
