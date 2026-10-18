@@ -16,6 +16,7 @@ import { watchUpdates } from './updates.js';
 import { qrSVG, qrPNG } from './qr.js';
 import { makePersonalCard, personalCardLink, readPersonalCardLink, loadPersonalCard, rememberPersonalCard, personalCardCandidates, personalCardTarget, applyPersonalCard } from './personal-card.js';
 import { encodeFormLink, decodeFormLink, responseTarget, responseCandidates, prepareProfileInvitation, profileInvitation, applyProfileResponse } from './profile-requests.js';
+import { sharedLinkFragments, isShareRoute } from './share-links.js';
 import { normalizePhone, whatsappURL, parseVCards, personContactActions, normalizeEmail, mailtoURL } from './contacts.js';
 
 const root = document.getElementById('rete-tag');
@@ -35,6 +36,7 @@ const quickRequestsEditor = new NeedsEditor(q('#quick-needs-editor'));
 let quickHelpEdited = false, quickNeedEdited = false, contactChoices = [], introPhone = '';
 let pendingResponse = null, pendingCard = null, responseBase = null, requestInvitation = null, requestContact = null, requestQR = '';
 let qrTimer;
+let incomingError = '';
 
 const data = () => sync.local;
 const person = () => data().people[selected] ? viewPerson(data(), data().people[selected]) : null;
@@ -113,8 +115,8 @@ function enter(state, identity, client, localVault, isDemo = false) {
   q('[data-action="forget"]').hidden = !localVault;
   if (!sync.pending) sync.edit(d => ensureMember(d, user));
   changed(); scheduleSync();
-  if (firstVisit && !sync.pending) { selected = ownPersonId(); render(); openForm('profile'); }
   if (pendingResponse || pendingCard) reviewResponse();
+  else if (firstVisit && !sync.pending) { selected = ownPersonId(); render(); openForm('profile'); }
 }
 function loginScreen() {
   const accounts = listVaults();
@@ -123,6 +125,7 @@ function loginScreen() {
   q('#unlock-form').elements.account.innerHTML = accounts.map(a => `<option value="${esc(a.id)}">@${esc(a.login)}</option>`).join('');
   updateUnlockForm();
   q('#auth-error').textContent = '';
+  if (incomingError) q('#auth-error').textContent = incomingError;
   if (!accounts.length && !joinGuideShown && window.location?.hash === '#join') { joinGuideShown = true; openAccessGuide('guest'); }
 }
 function updateUnlockForm() {
@@ -381,26 +384,33 @@ function reviewResponse() {
     q('#response-existing-row').hidden = !candidates.length;
     q('#response-existing').innerHTML = '<option value="">Aggiungi una nuova persona</option>' + candidates.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.exact ? ' · corrispondenza' : ' · stesso nome'}</option>`).join('');
     if (target) q('#response-existing').value = target;
-    responseBase = clone(data()); q('#response-title').textContent = pendingCard ? 'Rivedi la scheda' : 'Rivedi la risposta';
+    responseBase = clone(data()); q('#response-title').textContent = `La scheda di ${r.name}`;
     q('#response-target').textContent = p ? `Scheda per ${p.name}. I tuoi appunti restano.` : 'Nuova persona per la tua rete. Verrà aggiunta solo dopo la conferma.';
     q('#response-review').innerHTML = `<h3>${esc(r.name)}</h3>${r.role ? `<p class="rs-role">${esc(r.role)}</p>` : ''}<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3><p>${esc(r.help || 'Non indicato. I tuoi appunti restano.')}</p></section><section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerca</h3><p>${profileNeeds(r).map(n => esc(n.text)).join('<br><br>') || 'Non indicato. Le richieste già annotate restano.'}</p></section><p class="rs-response-contacts">${[r.email, r.phone, r.linkedin].filter(Boolean).map(esc).join('<br>') || 'Nessun nuovo recapito.'}</p>`;
+    q('[data-action="accept-response"]').textContent = p ? 'Aggiorna scheda' : 'Aggiungi alla rete';
     q('#response-review-error').textContent = ''; showDialog('#response-dialog');
   } catch (error) { pendingResponse = pendingCard = responseBase = null; notice(error.message); }
 }
 function clearResponse() {
   pendingResponse = pendingCard = responseBase = null; q('#response-dialog').close();
+  q('#auth-incoming').hidden = true; incomingError = '';
   q('#response-review').replaceChildren(); q('#response-target').textContent = ''; q('#response-review-error').textContent = '';
-  if (/^#(?:response|card)=/.test(window.location.hash)) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  if (isShareRoute(window.location.hash, ['response', 'card'])) window.history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 function readIncomingLink(value) {
-  let hash = value; try { if (!value.startsWith('#')) hash = new URL(value).hash; } catch {}
-  if (hash.startsWith('#card=')) { pendingCard = readPersonalCardLink(value); pendingResponse = null; }
+  const fragments = sharedLinkFragments(value, ['card', 'response']);
+  if (new Set(fragments.map(f => f.marker)).size > 1) throw new Error('Ci sono più schede nel messaggio. Incollane una alla volta.');
+  if (fragments[0].marker === 'card') { pendingCard = readPersonalCardLink(value); pendingResponse = null; }
   else { pendingResponse = decodeFormLink(value, 'response'); pendingCard = null; }
+  incomingError = '';
+  const profile = pendingCard?.profile || pendingResponse;
+  q('#auth-incoming').textContent = `Scheda di ${profile.name} ricevuta. Accedi alla tua rete per rivederla e aggiungerla.`;
+  q('#auth-incoming').hidden = false;
 }
 function readResponseRoute() {
-  if (!/^#(?:response|card)=/.test(window.location.hash)) return;
+  if (!isShareRoute(window.location.hash, ['response', 'card'])) return;
   try { readIncomingLink(window.location.hash); if (sync) reviewResponse(); }
-  catch (error) { if (sync) notice(error.message); else q('#auth-error').textContent = error.message; }
+  catch (error) { incomingError = error.message; if (sync) notice(error.message); else q('#auth-error').textContent = error.message; }
 }
 q('#paste-response-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -408,6 +418,11 @@ q('#paste-response-form').addEventListener('submit', event => {
   catch (error) { q('#paste-response-error').textContent = error.message; }
 });
 q('#response-dialog').addEventListener('cancel', clearResponse);
+q('#response-existing').addEventListener('change', () => {
+  const target = data().people[q('#response-existing').value];
+  q('#response-target').textContent = target ? `Scheda per ${target.name}. I tuoi appunti restano.` : 'Nuova persona per la tua rete. Verrà aggiunta solo dopo la conferma.';
+  q('[data-action="accept-response"]').textContent = target ? 'Aggiorna scheda' : 'Aggiungi alla rete';
+});
 function saveQuickPerson(e) {
   e.preventDefault();
   try {
@@ -435,12 +450,13 @@ function saveQuickPerson(e) {
       d.contributions[key] = { id: key, personId: id, authorId: user.id, help, ...quickOfferTags.values, ...(quickDraft.presentation ? { presentation: quickDraft.presentation } : {}), collaboration: 'Da chiedere', needs };
       d.relationships[key] = { id: key, personId: id, authorId: user.id, context: quickDraft.context, since: quickDraft.since, level: '', last: '', note: '' };
     });
-    q('#quick-dialog').close(); selected = id; clearFilters(); closeForm(); render(); scheduleSync();
+    q('#quick-dialog').close(); selected = id; clearFilters(); closeForm(); render(); scheduleSync(); reviewResponse();
     focusDetail();
   } catch (error) { q('#quick-error').textContent = error.message; }
 }
 function resetUI() {
   selected = null; mode = null; formBase = null; editingId = null; search = '';
+  incomingError = ''; q('#auth-incoming').hidden = true; q('#auth-incoming').textContent = '';
   pendingImport = null; draftUndo = null; importedSuggestions = {}; confirmAction = null; pendingResponse = pendingCard = null; responseBase = null; requestInvitation = requestContact = null; requestQR = ''; clearTimeout(qrTimer); q('#request-qr').replaceChildren();
   quickDraft = null; quickNameEdited = false; quickHomonym = false;
   filters = emptyFilters();
@@ -717,7 +733,7 @@ function saveForm(e) {
       }
       if (showRelationship) d.relationships[key] = { id: key, personId: id, authorId: user.id, context: f.personContext.value.trim(), since: f.personSince.value.trim(), level: f.personLevel.value, last: f.personLast.value, note: f.personNote.value.trim() };
     }, formBase);
-    selected = id; clearFilters(); closeForm(); render(); focusDetail(); scheduleSync();
+    selected = id; clearFilters(); closeForm(); render(); focusDetail(); scheduleSync(); reviewResponse();
   } catch (e) { notice(e.message); }
 }
 const fieldNames = { name: 'Nome', role: 'Ruolo', help: 'Come può aiutare', skills: 'Competenze', markets: 'Ambiti', interests: 'Interessi', collaboration: 'Collaborazioni', context: 'Contesto', since: 'Dal', level: 'Rapporto', last: 'Ultimo contatto', note: 'Nota', login: 'Account', need: 'Cerca', phone: 'Telefono', email: 'Email', reply: 'Scheda compilata', profileRequestId: 'Invito alla scheda', profileInviteId: 'Link per nuove persone' };
@@ -895,7 +911,7 @@ root.addEventListener('click', async e => {
     if (a === 'profile') { selected = ownPersonId(); closeForm(); render(); openForm('profile'); }
     if (a === 'edit') openForm(selected === ownPersonId() ? 'profile' : 'edit');
     if (a === 'relation') openForm('relation');
-    if (a === 'cancel') { const own = mode === 'profile'; closeForm(); if (own) selected = null; render(); selected ? focusDetail() : q('#rs-add').focus(); if (own) window.scrollTo?.({ top: 0, behavior: 'instant' }); }
+    if (a === 'cancel') { const own = mode === 'profile'; closeForm(); if (own) selected = null; render(); selected ? focusDetail() : q('#rs-add').focus(); if (own) window.scrollTo?.({ top: 0, behavior: 'instant' }); reviewResponse(); }
     if (a === 'close') closeDetail();
     if (a === 'clear') { clearFilters(); render(); }
     if (a === 'clear-search') { search = ''; q('#rs-search').value = ''; render(); q('#rs-search').focus(); }
@@ -921,7 +937,7 @@ root.addEventListener('click', async e => {
     if (a === 'copy-introduction') await copyIntroduction();
     if (a === 'access-guide') openAccessGuide();
     if (a === 'access-ready') { q('#access-dialog').close(); q('#unlock-form').hidden = true; q('#login-form').hidden = false; q('#login-form').elements.token.focus(); }
-    if (a === 'close-dialog') b.closest('dialog').close();
+    if (a === 'close-dialog') { b.closest('dialog').close(); if (pendingResponse || pendingCard) reviewResponse(); }
     if (a === 'other-account') { q('#unlock-form').hidden = true; q('#login-form').hidden = false; }
     if (a === 'demo') { const d = demoNetwork(); enter({ base: d.data, local: d.data, sha: 'demo' }, d.user, null, null, true); }
     if (a === 'export-json') exportJSON();
@@ -971,7 +987,7 @@ window.addEventListener('hashchange', readResponseRoute);
 // The remembered session skips loginScreen; every entry path needs the shell icons.
 hydrateIcons(root);
 mountOfferGuidance(root);
-await restoreRememberedAccess();
 readResponseRoute();
+await restoreRememberedAccess();
 
 mountTextareaSizes(root);

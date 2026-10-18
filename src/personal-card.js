@@ -2,6 +2,7 @@ import { preserveLegacyNeeds } from './needs.js';
 import { PROFILE_FIELDS, UUID, cleanProfile, validateProfileFields } from './profile-card.js';
 import { live, keyFor, norm } from './model.js';
 import { responseCandidates } from './profile-requests.js';
+import { readSharedLink } from './share-links.js';
 
 const KEY = 'tramite:personal-card:v1';
 const invalid = () => { throw new Error('Scheda condivisa non valida. Chiedi di inviare di nuovo il link.'); };
@@ -27,13 +28,10 @@ export function personalCardLink(card, baseURL) {
   const url = new URL('./profilo.html', baseURL); url.search = ''; url.hash = 'card=' + encoded; if (url.href.length > 28000) throw new Error('Scheda troppo lunga per il link. Riduci i testi prima di condividere.'); return url.href;
 }
 export function readPersonalCardLink(link) {
-  if (typeof link !== 'string' || link.length > 28000) invalid();
-  let hash; try { hash = link.startsWith('#') ? link : new URL(link).hash; } catch { invalid(); }
-  const match = hash.match(/^#card=([A-Za-z0-9_-]{1,26000})$/); if (!match) invalid();
-  let p;
-  try { p = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(match[1].replaceAll('-', '+').replaceAll('_', '/')), c => c.charCodeAt(0)))); } catch { invalid(); }
-  if (!Array.isArray(p) || ![1, 2].includes(p[0]) || p.length !== (p[0] === 2 ? 12 : 11)) invalid();
-  return validatePersonalCard({ v: p[0], kind: 'card', id: p[1], revision: p[2], updatedAt: p[3], profile: Object.fromEntries(Object.keys(PROFILE_FIELDS).map((k, i) => [k, p[i + 4]]).concat(p[0] === 2 ? [['needs', p[11]]] : [])) });
+  return readSharedLink(link, ['card'], p => {
+    if (!Array.isArray(p) || ![1, 2].includes(p[0]) || p.length !== (p[0] === 2 ? 12 : 11)) invalid();
+    return validatePersonalCard({ v: p[0], kind: 'card', id: p[1], revision: p[2], updatedAt: p[3], profile: Object.fromEntries(Object.keys(PROFILE_FIELDS).map((k, i) => [k, p[i + 4]]).concat(p[0] === 2 ? [['needs', p[11]]] : [])) });
+  });
 }
 export function loadPersonalCard(storage = globalThis.localStorage) {
   const raw = storage?.getItem(KEY); return raw ? validatePersonalCard(JSON.parse(raw)) : null;

@@ -1,17 +1,20 @@
-import { mountTextareaSizes } from './textarea-size.js';
+import { mountTextareaSizes, refreshTextareaSizes } from './textarea-size.js';
 import { NeedsEditor } from './needs-editor.js';
+import { profileNeeds } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { decodeFormLink, encodeFormLink } from './profile-requests.js';
+import { responseMessage } from './response-message.js';
 import { normalizePhone, normalizeEmail, mailtoURL, whatsappURL } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
-import { hydrateIcons } from './icons.js';
+import { hydrateIcons, icon } from './icons.js';
 import { makePersonalCard, personalCardLink, loadPersonalCard, rememberPersonalCard, sameProfile } from './personal-card.js';
 import { PROFILE_FIELDS } from './profile-card.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const needsEditor = new NeedsEditor(q('#response-needs-editor'), { self: true });
-let invitation, responseId, personal = null, identityCard = null;
+let invitation, responseId, personal = null, identityCard = null, outgoing = null;
 try { personal = loadPersonalCard(); } catch {}
 function usePersonal() {
   if (!personal) return; identityCard = personal;
@@ -23,7 +26,7 @@ function usePersonal() {
 try {
   invitation = decodeFormLink(window.location.hash, 'invite'); responseId = crypto.randomUUID();
   q('#response-for').textContent = `Su invito di ${invitation.facilitator}`;
-  q('#response-sharing').textContent = `La risposta sarà condivisa con ${invitation.facilitator} e il suo team. Compila solo ciò che vuoi condividere.`;
+  q('#response-sharing').textContent = `La scheda sarà condivisa con ${invitation.facilitator} e il suo team. Compila solo ciò che vuoi condividere.`;
   if (invitation.prefill && Object.values(invitation.prefill).some(Boolean)) {
     for (const key of Object.keys(PROFILE_FIELDS).filter(k => k !== 'need')) q('#response-form').elements[key].value = invitation.prefill[key];
     needsEditor.setProfile(invitation.prefill);
@@ -34,56 +37,67 @@ try {
     const matches = invitation.personId === 'new' || sameProfile(personal.profile, invitation.prefill || {});
     if (matches) usePersonal(); else { q('#response-use-personal').hidden = false; q('#response-remember').checked = false; }
   }
-  const channel = invitation.replyPhone ? 'WhatsApp' : invitation.replyEmail ? 'email' : '';
-  q('#response-submit-label').textContent = channel ? `Rispondi via ${channel}` : navigator.share ? 'Condividi la tua scheda' : 'Copia la tua risposta';
-  q('#response-delivery-hint').textContent = channel ? `${channel === 'email' ? 'La tua app email' : 'WhatsApp'} si apre con la risposta pronta per ${invitation.facilitator}. Devi solo inviarla.` : 'Invia la risposta a chi ti ha invitato: aprirà la scheda e confermerà l’aggiunta.';
+  q('#response-submit-label').textContent = 'Rivedi e invia';
+  q('#response-delivery-hint').textContent = `Nel prossimo passaggio rivedi la scheda e la invii a ${invitation.facilitator}.`;
   q('#response-editor').hidden = false;
 } catch (error) {
   q('#response-error').hidden = false;
   if (window.location.hash) q('#response-error-copy').textContent = error.message;
 }
-q('#response-form').addEventListener('submit', async event => {
+q('#response-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
     if (!invitation) return;
     const f = event.currentTarget.elements;
     const fields = { ...Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, k === 'need' ? '' : f[k].value])), needs: needsEditor.profile() };
     const reusable = makePersonalCard(fields, identityCard); identityCard = reusable;
-    let memoryNote = '';
-    if (q('#response-remember').checked) { try { rememberPersonalCard(reusable); personal = reusable; } catch { memoryNote = ' Questo browser non la ricorda: conserva il link della tua scheda.'; } }
-    q('#response-personal').href = personalCardLink(reusable, window.location.href); q('#response-personal').hidden = false;
     const response = { v: 3, kind: 'response', personId: invitation.personId, authorId: invitation.authorId, requestId: invitation.requestId,
       responseId, cardId: reusable.id, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: '', needs: fields.needs,
       phone: normalizePhone(f.phone.value), email: normalizeEmail(f.email.value), linkedin: normalizeLinkedIn(f.linkedin.value) };
-    const link = encodeFormLink(response, window.location.href);
-    q('#response-link').value = link;
-    q('#response-return-copy').textContent = `${invitation.facilitator} aprirà la risposta e confermerà la tua scheda. Nessun appunto precedente verrà cancellato.${memoryNote}`;
-    const message = `Ecco la mia scheda per Tramite:\n${link}`;
-    q('#response-whatsapp').hidden = !invitation.replyPhone;
-    const whatsapp = invitation.replyPhone ? whatsappURL(invitation.replyPhone, message) : '';
-    if (whatsapp) q('#response-whatsapp').href = whatsapp;
-    q('#response-email').hidden = !invitation.replyEmail;
-    const email = invitation.replyEmail ? mailtoURL(invitation.replyEmail, 'La mia scheda · Tramite', message) : '';
-    if (email) q('#response-email').href = email;
+    const link = encodeFormLink(response, window.location.href), message = responseMessage(response, link);
+    let memoryNote = '';
+    if (q('#response-remember').checked) { try { rememberPersonalCard(reusable); personal = reusable; } catch { memoryNote = ' Conserva il link della tua scheda: questo browser non la ricorda.'; } }
+    q('#response-personal').href = personalCardLink(reusable, window.location.href); q('#response-personal').hidden = false;
+    const channel = invitation.replyPhone ? 'whatsapp' : invitation.replyEmail ? 'email' : navigator.share ? 'share' : 'copy';
+    outgoing = { response, link, message, channel };
+    q('#response-link').value = link; q('#response-message').value = message; q('#response-manual').hidden = true;
+    q('#response-ready-title').textContent = `Invia a ${invitation.facilitator}`;
+    const instructions = { whatsapp: 'Si apre WhatsApp con la scheda pronta. Premi Invia nella conversazione.', email: 'Si apre la tua app email con la scheda pronta. Controlla e premi Invia.', share: 'Scegli la conversazione con chi ti ha invitato e invia la scheda.', copy: `Copia il messaggio, incollalo nella conversazione con ${invitation.facilitator} e invialo.` };
+    q('#response-return-copy').textContent = instructions[channel] + memoryNote;
+    const labels = { whatsapp: 'Invia su WhatsApp', email: 'Invia via email', share: 'Condividi scheda', copy: 'Copia messaggio' };
+    q('#response-send').innerHTML = icon(channel === 'copy' ? 'clipboard' : 'send') + labels[channel];
+    q('#response-preview').innerHTML = `<h2>${esc(response.name)}</h2>${response.role ? `<p class="rs-role">${esc(response.role)}</p>` : ''}${response.help ? `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Posso aiutare con</h3><p>${esc(response.help)}</p></section>` : ''}${response.needs.length ? `<section class="rs-person-need"><h3 class="rs-intent-label">${icon('search')}Cerco</h3><div class="rs-shared-needs">${profileNeeds(response).map(n => `<p>${esc(n.text)}</p>`).join('')}</div></section>` : ''}${[response.email, response.phone, response.linkedin].some(Boolean) ? `<p class="rs-response-contacts">${[response.email, response.phone, response.linkedin].filter(Boolean).map(esc).join('<br>')}</p>` : ''}`;
+    q('#response-whatsapp').hidden = !invitation.replyPhone || channel === 'whatsapp';
+    if (invitation.replyPhone) q('#response-whatsapp').href = whatsappURL(invitation.replyPhone, message);
+    q('#response-email').hidden = !invitation.replyEmail || channel === 'email';
+    if (invitation.replyEmail) q('#response-email').href = mailtoURL(invitation.replyEmail, 'La mia scheda · Tramite', message);
+    q('#response-share').hidden = !navigator.share || channel === 'share'; q('#response-copy').hidden = channel === 'copy';
+    q('#response-other').hidden = channel === 'copy'; q('#response-other').open = false; q('#response-link-details').open = false;
     q('#response-editor').hidden = true; q('#response-ready').hidden = false; q('#response-copy-status').textContent = '';
-    q('#response-ready h1').setAttribute('tabindex', '-1'); q('#response-ready h1').focus(); window.scrollTo?.({ top: 0 });
-    // This explicit click opens a prepared reply, never sends it automatically.
-    if (whatsapp) window.open(whatsapp, '_blank', 'noopener,noreferrer');
-    else if (email) window.location.assign(email);
-    else if (navigator.share) {
-      try { await navigator.share({ title: 'La mia scheda · Tramite', text: `La mia scheda per ${invitation.facilitator}.`, url: link }); }
-      catch (error) { if (error.name === 'AbortError') q('#response-copy-status').textContent = 'Condivisione annullata. La risposta è qui, puoi riprovare.'; }
-    } else await copyResponse();
+    q('#response-ready-title').setAttribute('tabindex', '-1'); q('#response-ready-title').focus(); window.scrollTo?.({ top: 0 });
   } catch (error) { q('#response-validation').textContent = error.message; }
 });
-q('#response-use-personal').addEventListener('click', usePersonal);
-q('#response-edit').addEventListener('click', () => { q('#response-ready').hidden = true; q('#response-editor').hidden = false; q('#response-validation').textContent = ''; });
-async function copyResponse() {
-  try { await navigator.clipboard.writeText(q('#response-link').value); q('#response-copy-status').textContent = 'Risposta copiata. Incollala nella conversazione con chi ti ha invitato.'; }
-  catch { q('#response-link').focus(); q('#response-link').select(); q('#response-copy-status').textContent = 'Copia il link selezionato e invialo nella vostra conversazione.'; }
+async function shareResponse() {
+  try { await navigator.share({ title: 'La mia scheda · Tramite', text: responseMessage(outgoing.response), url: outgoing.link }); q('#response-copy-status').textContent = 'Completa l’invio nella conversazione scelta.'; }
+  catch (error) { q('#response-copy-status').textContent = error.name === 'AbortError' ? 'Condivisione annullata. La scheda è qui: puoi riprovare.' : 'Condivisione non disponibile. Usa Copia messaggio.'; q('#response-other').open = true; }
 }
+async function copyResponse() {
+  if (!outgoing) return;
+  try { await navigator.clipboard.writeText(outgoing.message); q('#response-copy-status').textContent = `Messaggio copiato. Incollalo nella conversazione con ${invitation.facilitator} e invialo.`; }
+  catch { q('#response-manual').hidden = false; q('#response-message').focus(); q('#response-message').select(); q('#response-copy-status').textContent = `Copia il messaggio selezionato e invialo a ${invitation.facilitator}.`; }
+}
+q('#response-send').addEventListener('click', async () => {
+  if (!outgoing) return;
+  try {
+    if (outgoing.channel === 'whatsapp') { window.open(q('#response-whatsapp').href, '_blank', 'noopener,noreferrer'); q('#response-copy-status').textContent = 'Completa l’invio in WhatsApp. Se non si apre, usa Un altro modo.'; q('#response-whatsapp').hidden = false; }
+    else if (outgoing.channel === 'email') { window.location.assign(q('#response-email').href); q('#response-copy-status').textContent = 'Completa l’invio nella tua app email. Se non si apre, usa Un altro modo.'; q('#response-email').hidden = false; }
+    else if (outgoing.channel === 'share') await shareResponse(); else await copyResponse();
+  } catch { q('#response-copy-status').textContent = 'Usa Copia messaggio per inviare la scheda.'; q('#response-other').open = true; }
+});
+q('#response-use-personal').addEventListener('click', usePersonal);
+q('#response-edit').addEventListener('click', () => { q('#response-ready').hidden = true; q('#response-editor').hidden = false; q('#response-validation').textContent = ''; refreshTextareaSizes(root); });
 q('#response-copy').addEventListener('click', copyResponse);
+q('#response-share').addEventListener('click', shareResponse);
 hydrateIcons(document);
 mountOfferGuidance(root);
-
 mountTextareaSizes(root);

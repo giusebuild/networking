@@ -1,5 +1,6 @@
 import { mountTextareaSizes } from './textarea-size.js';
 import { NeedsEditor } from './needs-editor.js';
+import { isShareRoute } from './share-links.js';
 import { profileNeeds } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { PROFILE_FIELDS } from './profile-card.js';
@@ -35,7 +36,7 @@ function view(card) {
   q('#personal-contacts').innerHTML = personContactActions({ ...p, relationships: [{ authorId: 'self' }] }, 'self').filter(a => a.href).map(a => `<a class="rs-btn rs-${a.type}" href="${esc(a.href)}" ${a.type === 'email' ? '' : 'target="_blank" rel="noopener noreferrer"'}>${a.type === 'whatsapp' ? icon('message-circle') + 'WhatsApp' : a.type === 'email' ? 'Email' : 'LinkedIn ↗'}</a>`).join('');
 }
 try {
-  if (window.location.hash.startsWith('#card=')) view(readPersonalCardLink(window.location.hash));
+  if (isShareRoute(window.location.hash, ['card'])) view(readPersonalCardLink(window.location.hash));
   else if (saved) view(saved); else edit();
 } catch (error) { q('#personal-status').textContent = error.message; edit(); }
 q('#personal-form').addEventListener('submit', event => {

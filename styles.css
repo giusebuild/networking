@@ -416,8 +416,20 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{touch-a
 #rete-tag .rs-response-submit{width:100%;margin-top:16px;min-height:48px}
 #rete-tag .rs-response-link{margin:20px 0 10px;font-size:12px}
 #rete-tag .rs-response-link textarea{font-size:13px;word-break:break-all;color:var(--rs-muted)}
-#rete-tag #response-ready>h1{margin-top:10px}
-#rete-tag #response-ready>#response-edit{margin:8px 0 16px}
+#rete-tag #response-ready-title{overflow-wrap:anywhere}
+#rete-tag .rs-response-preview{display:block}
+#rete-tag .rs-response-preview>h2{margin-bottom:4px;overflow-wrap:anywhere}
+#rete-tag .rs-response-preview>.rs-role{margin-bottom:18px}
+#rete-tag .rs-response-preview>.rs-person-offer,#rete-tag .rs-response-preview>.rs-person-need{margin-top:16px}
+#rete-tag .rs-response-preview>.rs-response-contacts{margin-top:16px}
+#rete-tag .rs-delivery-card{gap:12px}
+#rete-tag .rs-delivery-card .rs-dialog-copy{margin:0}
+#rete-tag .rs-delivery-card .rs-response-submit{margin:0}
+#rete-tag #response-other>summary{min-height:44px;padding:11px 0;color:var(--rs-muted);font-size:13px}
+#rete-tag #response-other .rs-response-return{margin:8px 0}
+#rete-tag .rs-delivery-card .rs-request-link{margin:0}
+#rete-tag .rs-response-message{max-height:260px;overflow:auto;font-size:14px}
+#rete-tag #auth-incoming{color:var(--rs-offer-ink);margin-bottom:20px}
 #rete-tag .rs-personal-view{display:block;padding:24px}
 #rete-tag .rs-personal-view>h1{margin:12px 0 8px;overflow-wrap:anywhere}
 #rete-tag .rs-personal-view>.rs-role{margin-bottom:20px}

@@ -3,6 +3,7 @@ import { keyFor, norm, live, viewPerson } from './model.js';
 import { normalizePhone, normalizeEmail } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
 import { PROFILE_FIELDS, UUID, validateProfileFields, cleanProfile } from './profile-card.js';
+import { readSharedLink } from './share-links.js';
 
 const fail = () => { throw new Error('Link della scheda non valido. Chiedi un nuovo link.'); };
 function shape(value, fields) {
@@ -43,21 +44,14 @@ export function encodeFormLink(value, baseURL) {
   return url.href;
 }
 export function decodeFormLink(link, kind) {
-  if (!['invite', 'response'].includes(kind) || typeof link !== 'string' || link.length > 28000) fail();
-  let hash;
-  try { hash = link.startsWith('#') ? link : new URL(link).hash; } catch { fail(); }
-  const match = hash.match(new RegExp(`^#${kind === 'invite' ? '(invite|i)' : '(response)'}=([A-Za-z0-9_-]{1,26000})$`));
-  if (!match) fail();
-  let value;
-  try {
-    const raw = atob(match[2].replaceAll('-', '+').replaceAll('_', '/'));
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(raw, x => x.charCodeAt(0))));
-  } catch { fail(); }
-  if (match[1] === 'i') {
-    if (!Array.isArray(value) || value.length !== 6 || value[0] !== 2) fail();
-    value = { v: 2, kind: 'invite', personId: 'new', authorId: value[1], requestId: value[2], facilitator: value[3], replyPhone: value[4], replyEmail: value[5], prefill: Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, ''])) };
-  }
-  return kind === 'invite' ? validateInvitation(value) : validateResponse(value);
+  if (!['invite', 'response'].includes(kind)) fail();
+  return readSharedLink(link, kind === 'invite' ? ['invite', 'i'] : ['response'], (value, marker) => {
+    if (marker === 'i') {
+      if (!Array.isArray(value) || value.length !== 6 || value[0] !== 2) fail();
+      value = { v: 2, kind: 'invite', personId: 'new', authorId: value[1], requestId: value[2], facilitator: value[3], replyPhone: value[4], replyEmail: value[5], prefill: Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, ''])) };
+    }
+    return kind === 'invite' ? validateInvitation(value) : validateResponse(value);
+  });
 }
 export function prepareProfileInvitation(data, userId, personId = 'new') {
   const member = data.members[userId];

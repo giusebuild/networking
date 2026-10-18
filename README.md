@@ -4,6 +4,12 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
+## Compila, invia, aggiungi · 1.14.0
+
+Chi compila sceglie **Rivedi e invia**, controlla la scheda in chiaro e usa **Invia su WhatsApp**, **Invia via email**, condivisione o copia del messaggio. Il messaggio contiene nome, offerta, richieste e recapiti leggibili, seguiti dal link per aprire la scheda nell’app. L’invio si conclude nella propria app di messaggi.
+
+Chi riceve apre il link, rivede i campi e sceglie **Aggiungi alla rete** o **Aggiorna scheda**. Da **Impostazioni → Apri una scheda ricevuta** può anche incollare tutto il messaggio: l’app riconosce il link senza ricopiare i campi. La scheda ricevuta ha priorità rispetto alla compilazione iniziale del proprio profilo. Gli appunti già presenti restano separati.
+
 ## Interfaccia · 1.13.1
 
 Componenti condivisi tra rete, profilo, inserimento rapido, finestre e schede pubbliche: pulsanti, campi, tag, filtri e azioni seguono la stessa scala. Nei moduli Offre e Cerca sono sezioni leggere con colori distinti. Il testo si espande durante la scrittura e all’apertura delle schede; i testi incollati lunghi mantengono un’area di lettura scorrevole. I tag hanno un comando esplicito, le azioni secondarie restano compatte e separate, le finestre mantengono la chiusura raggiungibile. I campi su telefono evitano lo zoom automatico al tocco. Nessuna modifica al formato dei dati, all’accesso o all’infrastruttura.
@@ -89,7 +95,9 @@ L’invito viene salvato nel repository privato prima di condividerlo. **Condivi
 
 Chi riceve il link non ha bisogno di GitHub. Il modulo non carica l’archivio privato. L’invito contiene i riferimenti della richiesta, il nome e gli eventuali recapiti del mittente e, per una persona già mappata, i campi della bozza condivisa. Il link non dà accesso alla rete.
 
-**Rispondi via WhatsApp/email** prepara la risposta e apre direttamente il messaggio al mittente: resta da premere Invia nella propria app. Quando non c’è un canale di ritorno, si usa la condivisione del telefono o la copia della risposta. Il mittente apre il link ricevuto e sceglie **Conferma e aggiorna**; non deve ricopiare i campi. In alternativa, **Impostazioni → Apri una risposta** consente di incollare il link se l’app sulla Home e il browser hanno accessi separati. Non esistono invii di messaggi automatici o scritture anonime nel repository: la ricezione completamente automatica richiederebbe un servizio esterno.
+**Rivedi e invia** mostra la scheda pronta con nome, offerta, richieste e recapiti. Il comando principale indica il prossimo passo: **Invia su WhatsApp**, **Invia via email**, **Condividi scheda** oppure **Copia messaggio**. **Un altro modo** contiene le alternative. WhatsApp e l’email si aprono soltanto quando la persona sceglie di inviare; resta da premere Invia nella propria app. Copia messaggio include sia il testo leggibile sia il link. **Solo il link** rimane disponibile separatamente. Dopo un annullamento o un errore di copia la scheda resta pronta e modificabile.
+
+Chi riceve apre il link e rivede i campi, poi sceglie **Aggiungi alla rete** o **Aggiorna scheda**. Se deve accedere prima, l’app gli indica quale scheda ha ricevuto e la apre dopo l’accesso. In alternativa, **Impostazioni → Apri una scheda ricevuta** accetta il link oppure tutto il messaggio, anche se copiato con intestazione, punteggiatura, parentesi o interruzioni di riga. Accenti, emoji, testi e richieste restano quelli compilati. I messaggi con più schede differenti richiedono di incollarne una alla volta. Un link incompleto dà un errore leggibile e richiede il messaggio completo o un nuovo invio. La ricezione completamente automatica richiederebbe un servizio esterno.
 
 **I dati inseriti dal team restano.** La risposta viene salvata separatamente dagli appunti di chi ha mappato la persona: non sostituisce testi, tag personalizzati, bisogni, contatti noti, originale o relazioni. Anche una risposta vuota conserva ciò che era già annotato. La rete mostra il contributo ricevuto con la fonte **Dalla scheda compilata**, mentre gli appunti precedenti restano consultabili nei dettagli e ricercabili. I recapiti forniti dalla persona sono utilizzabili dalla scheda; quelli annotati dal team rimangono conservati. Nel modulo Modifica si cambiano i propri appunti, separati dalla risposta. JSON conserva entrambi e CSV distingue la fonte con una riga dedicata alla scheda compilata.
 
