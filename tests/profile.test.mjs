@@ -36,7 +36,7 @@ test('a copied profile name and headline become a draft without inventing a summ
 });
 test('ordinary descriptive sentences are not mistaken for a person name', () => {
   const d = draftFromText('Esperienza nella ricerca utenti\nCollaborazioni in diversi settori');
-  assert.equal(d.name, ''); assert.match(d.help, /Esperienza/);
+  assert.equal(d.name, ''); assert.equal(d.help, 'Ricerca utenti'); assert.match(d.presentation, /Esperienza nella ricerca utenti/);
 });
 test('a copied profile can have a name and headline before an About heading', () => {
   const d = draftFromText('Persona Demo\nProduct designer\nInformazioni\nProgetto servizi digitali.\nCompetenze\nUX/UI\nRicerca utenti');
@@ -56,7 +56,7 @@ test('a draft never assigns relationship strength, acquaintance dates or availab
   for (const key of ['level', 'since', 'last', 'collaboration']) assert.equal(Object.hasOwn(d, key), false);
 });
 test('large pasted texts are bounded and the shortened draft is indicated', () => {
-  const d = draftFromText('Una descrizione libera. '.repeat(1000)); assert.equal(d.help.length, 1500); assert.ok(d.shortened);
+  const d = draftFromText('Una descrizione libera. '.repeat(1000)); assert.equal(d.help, ''); assert.equal(d.presentation.length, 5000); assert.ok(d.shortened);
 });
 test('legacy data remains valid without adding or migrating a LinkedIn field', () => {
   const d = fixture(), before = clone(d); validateNetwork(d); assert.deepEqual(d, before);

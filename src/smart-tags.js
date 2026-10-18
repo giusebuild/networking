@@ -26,7 +26,7 @@ export class SmartTags {
     this.root.querySelector('.rs-tag-error').textContent = '';
     this.root.querySelector('.rs-smart-add').hidden = true; this.root.querySelector('.rs-smart-toggle').setAttribute('aria-expanded', 'false'); this.render();
   }
-  update(text) { this.auto = this.intent === 'need' ? needTags(text, this.pool) : suggestedTags(text, this.pool); this.render(); }
+  update(text, suggestions = {}) { this.auto = this.intent === 'need' ? needTags(text, this.pool) : suggestedTags(text, this.pool); if (this.intent !== 'need') for (const k of keys) this.auto[k] = uniqueTags([...this.auto[k], ...(suggestions[k] || [])]); this.render(); }
   get values() { return Object.fromEntries(keys.map(k => [k, uniqueTags([...this.manual[k], ...(this.auto[k] || [])].filter(x => !this.blocked.has(`${k}:${norm(x)}`))).slice(0, 40)])); }
   commit() {
     const value = this.input.value.trim().slice(0, 80); if (!value) return;

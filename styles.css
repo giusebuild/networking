@@ -159,3 +159,37 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{cursor:
 #rete-tag .rs-profile-preview{display:inline-flex;align-items:center;min-height:40px}
 @media(max-width:760px){#rete-tag[data-open="true"] .rs-person{padding:0}#rete-tag .rs-person-open{padding:18px 18px 0}#rete-tag .rs-person>.rs-contact-actions{padding:12px 18px 16px}#rete-tag .rs-contact-actions .rs-btn{min-height:44px}#rete-tag .rs-person-offer,#rete-tag .rs-person-need{padding:16px}}
 @media(max-width:480px){#rete-tag .rs-intent-panel{padding:13px}#rete-tag .rs-quick-preview .rs-field{min-height:44px}#rete-tag .rs-quick-preview textarea.rs-field{min-height:78px}#rete-tag .rs-intent-panel .rs-question-heading{font-size:13px}#rete-tag .rs-contact-fields summary{min-height:44px}}
+
+/* Small, explicit actions; the original biography stays out of the overview. */
+#rete-tag .rs-update{position:sticky;top:0;z-index:8;background:#30246d;color:#fff;display:flex;align-items:center;justify-content:center;gap:20px;padding:10px 20px;font-size:13px;box-shadow:0 2px 12px #30246d18}
+#rete-tag .rs-update .rs-btn{min-height:36px;padding:7px 14px;background:#fff;color:#30246d;border:0;flex-shrink:0}
+#rete-tag #rs-version{margin-left:auto;color:var(--rs-muted);font-size:11px}
+#rete-tag .rs-reach{margin:0 0 24px}
+#rete-tag .rs-reach h3{font-size:11px;font-weight:500;color:var(--rs-muted);margin:0 0 9px}
+#rete-tag .rs-reach .rs-contact-actions{margin:0}
+#rete-tag .rs-email{background:#f4f5fa;color:#4e526a;border:1px solid #e5e7f0}
+#rete-tag .rs-original{margin:8px 0;color:var(--rs-muted);font-size:12px;max-width:100%;min-width:0}
+#rete-tag .rs-original summary{cursor:pointer;padding:10px 0;font-size:12px;min-height:38px}
+#rete-tag .rs-original p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:12px;margin:5px 0 12px}
+#rete-tag .rs-original textarea{min-height:170px;font-size:13px;margin-top:8px}
+#rete-tag .rs-original.rs-form-card{padding:10px 20px}
+#rete-tag .rs-request-profile{width:100%;margin:0 0 20px;color:var(--rs-accent);background:#fff}
+#rete-tag .rs-response-return{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
+#rete-tag .rs-response-return .rs-btn{flex:1;justify-content:center;text-decoration:none;white-space:nowrap}
+#rete-tag .rs-response-contacts{font-size:12px;color:var(--rs-muted);overflow-wrap:anywhere;line-height:1.8}
+#rete-tag #response-review>h3{font-size:22px;letter-spacing:-.5px;margin:0 0 8px}
+#rete-tag #response-review>.rs-role{margin-bottom:18px}
+#rete-tag #response-dialog{max-width:540px}
+#rete-tag.rs-public-form .rs-top{max-width:620px;margin:auto;padding:24px}
+#rete-tag.rs-public-form .rs-brand{text-decoration:none;color:var(--rs-ink)}
+#rete-tag .rs-response-main{width:min(100%,620px);margin:auto;padding:20px 24px 56px}
+#rete-tag .rs-response-main h1{font-size:32px;letter-spacing:-1.3px;line-height:1.12;margin:0 0 14px}
+#rete-tag .rs-response-fields{display:grid;gap:20px;padding:24px;margin:0 0 16px}
+#rete-tag .rs-response-fields textarea{min-height:95px;resize:vertical}
+#rete-tag .rs-response-submit{width:100%;justify-content:center;margin-top:12px}
+#rete-tag .rs-response-main .rs-field-hint{line-height:1.65}
+#rete-tag .rs-response-link{margin:22px 0 10px;font-size:11px}
+#rete-tag .rs-response-link textarea{font-size:11px;color:var(--rs-muted);word-break:break-all;resize:vertical}
+#rete-tag #response-ready>h1{margin-top:12px}
+#rete-tag #response-ready>#response-edit{margin:8px 0 20px}
+@media(max-width:480px){#rete-tag .rs-update{justify-content:space-between;gap:12px;font-size:12px;padding:9px 16px}#rete-tag .rs-response-main{padding:16px 18px 40px}#rete-tag .rs-response-fields{padding:18px}#rete-tag .rs-response-main .rs-field{font-size:16px}}

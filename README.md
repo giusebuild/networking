@@ -8,7 +8,7 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **Aggiungi** apre una scheda breve: nome, **Cosa sa fare?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.
 
-La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** filtrano la stessa rete per il tipo di informazione. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
+La **Rete** comprende insieme i contatti di tutti i partecipanti. La ricerca legge contributi, richieste, tag e contesti. **Offre** e **Cerca** filtrano la stessa rete e mostrano nelle card soltanto il rispettivo blocco. Aprendo una persona si vede sempre la scheda completa. Le due informazioni hanno icone e colori distinti nelle card, nella scheda e nel modulo. **Chi lo conosce**, nei filtri, seleziona il tramite. Dal proprio avatar si modifica il profilo.
 
 Le informazioni dei conoscenti conservano l’autore. Le dichiarazioni di un partecipante hanno precedenza per la ricerca sul suo profilo. Nomi uguali non uniscono automaticamente persone: scegli una scheda già presente per aggiungere la tua relazione con **Lo conosco anch’io**. Il collegamento al titolare di una scheda creata prima del suo accesso non è automatico.
 
@@ -45,11 +45,23 @@ Si importano soltanto nome e numeri leggibili; con più contatti scegli quello d
 
 **WhatsApp** apre la conversazione con un messaggio precompilato, da rivedere e inviare personalmente. Per un’introduzione il destinatario è il facilitatore scelto; se il suo numero non è disponibile, resta **Copia messaggio**. Non ci sono invii automatici, API WhatsApp o chat interne. Il collegamento WhatsApp richiede un numero effettivamente registrato al servizio.
 
-Le card e le schede mostrano subito **WhatsApp** e **LinkedIn**, quando disponibili. Per un contatto raggiungibile tramite un collaboratore, **Chiedi un’intro** apre la richiesta al facilitatore. **Aggiungi recapiti** apre il modulo se mancano i canali: si può comunque creare una scheda con il solo nome.
+Le card e le schede mostrano subito **WhatsApp**, **Email** e **LinkedIn**, quando disponibili. Basta anche una sola email; telefono e profilo social restano facoltativi. Per un contatto raggiungibile tramite un collaboratore, **Chiedi un’intro** apre la richiesta al facilitatore. **Aggiungi recapiti** apre il modulo se mancano i canali: si può comunque creare una scheda con il solo nome.
 
-In **WhatsApp e LinkedIn**, nell’inserimento rapido, si aggiungono telefono, URL e titolo. L’URL viene normalizzato e riconosce un profilo già presente anche con un altro nome. **Apri profilo** porta a LinkedIn; **Incolla titolo e presentazione** prepara una bozza dai testi copiati. Nel modulo completo si può anche indicare il titolo separatamente e annullare la bozza prima del salvataggio. Una presentazione incollata non elimina una richiesta già presente.
+In **Come contattarlo**, nell’inserimento rapido, si aggiungono telefono, URL e titolo. L’URL viene normalizzato e riconosce un profilo già presente anche con un altro nome. **Apri profilo** porta a LinkedIn; **Incolla titolo e presentazione** prepara una bozza dai testi copiati. Nel modulo completo si può anche indicare il titolo separatamente e annullare la bozza prima del salvataggio. Una presentazione incollata non elimina una richiesta già presente. Il testo originale resta separato in **Testo originale**: non viene riversato nelle card né usato per la ricerca. Le regole locali propongono una sintesi delle attività riconosciute in Offre e compilano Cerca solo in presenza di una richiesta esplicita. Sono bozze da rivedere, non un’analisi AI del profilo. Non si deducono bisogni dal ruolo o dalle competenze.
 
-Il solo URL non importa titolo o presentazione. L’app non scarica né sincronizza profili LinkedIn e non usa proxy di scraping o servizi esterni: il testo incollato viene elaborato sul dispositivo e resta da confermare.
+LinkedIn apre il profilo, senza messaggio precompilato. Il solo URL non importa titolo o presentazione. L’app non scarica né sincronizza profili LinkedIn e non usa proxy di scraping o servizi esterni: il testo incollato viene elaborato sul dispositivo e resta da confermare.
+
+## Fai compilare la scheda
+
+Dalla scheda di una propria conoscenza, **Fai compilare la scheda** prepara un link pubblico dopo aver salvato l’invito nel repository privato. Si condivide tramite WhatsApp, email o copia del link. È un invito a compilare, non un accesso alla rete o al team.
+
+Chi riceve il link non ha bisogno di GitHub: inserisce nome, cosa offre, cosa cerca e gli eventuali recapiti. Il modulo non carica l’archivio privato. L’invito contiene soltanto i riferimenti della richiesta, il nome del mittente e i suoi eventuali recapiti per restituire la risposta, senza precompilare dati del contatto.
+
+**Prepara la risposta** genera un link con i campi compilati. La persona lo invia al mittente su WhatsApp o via email, oppure lo copia nella conversazione. Non c’è un invio automatico dal modulo al repository: senza backend non è possibile ricevere scritture anonime in un archivio privato.
+
+Il mittente apre il link e sceglie **Conferma e aggiorna**. In alternativa, può incollarlo in **Impostazioni → Apri una risposta**, utile se l’app sulla Home e il browser hanno accessi separati. La risposta aggiorna soltanto la scheda e il contributo del mittente; conserva relazioni, testo originale e osservazioni degli altri. I recapiti vuoti conservano quelli noti, mentre Offre e Cerca vuoti rimuovono il rispettivo contenuto del mittente. Le modifiche concorrenti passano dal normale confronto dei conflitti.
+
+Il link è utilizzabile una volta per quella richiesta e quell’autore; una scheda eliminata o diventata profilo di un partecipante non può essere aggiornata così. La risposta non verifica l’identità del compilatore: confermala riconoscendo la persona nella conversazione. Un nuovo invito dopo la conferma genera una nuova richiesta. I link di risposta contengono i dati compilati nel frammento dell’URL: non sono cifrati, non inoltrarli e non usarli per informazioni riservate. Il sito non li inserisce nel codice pubblico o nella cache delle API.
 
 ## Dati, salvataggio e recupero
 
@@ -66,7 +78,7 @@ La sincronizzazione parte dopo il salvataggio, tornando online, riaprendo la pag
 
 La cache offline contiene soltanto il guscio pubblico dell’app, mai le risposte GitHub. Dopo una riapertura, l’uso offline richiede l’accesso ricordato. Una copia locale diventa condivisa quando compare **Salvato su GitHub**.
 
-Dal menu si esportano **JSON**, completo e reimportabile per ID, e **CSV**, apribile in Excel e comprensivo di contributi, richieste, tag, relazioni e telefono. L’importazione JSON unisce e chiede di risolvere differenze, senza cancellare automaticamente persone esistenti. I backup sono in chiaro e senza token; custodiscili come l’archivio. L’esportazione di un conflitto è un file di recupero delle due versioni, non un backup direttamente reimportabile.
+Dal menu si esportano **JSON**, completo e reimportabile per ID, e **CSV**, apribile in Excel e comprensivo di contributi, richieste, tag, relazioni, telefono, email e testo originale. L’importazione JSON unisce e chiede di risolvere differenze, senza cancellare automaticamente persone esistenti. I backup sono in chiaro e senza token; custodiscili come l’archivio. L’esportazione di un conflitto è un file di recupero delle due versioni, non un backup direttamente reimportabile.
 
 ## Aggiungere alla Home
 
@@ -85,7 +97,7 @@ Servi `dist/` con un server HTTP statico. Service worker e cifratura richiedono 
 
 Il workflow **Verify and publish** verifica e pubblica `dist/` su GitHub Pages a ogni push su `main`. In [Settings → Pages](https://github.com/giusebuild/networking/settings/pages), la sorgente deve essere **GitHub Actions**. Il build include solo i file pubblici previsti; documenti, backup e dati privati non entrano nel sito.
 
-A ogni rilascio dell’app si incrementa `package.json`: il build aggiorna moduli, stile e cache insieme. **Ricarica l’app anche sugli altri dispositivi prima di modificare dati con una nuova versione.** I file precedenti restano leggibili; richieste e telefono sono informazioni facoltative e non impongono una migrazione iniziale.
+A ogni rilascio dell’app si incrementa `package.json`: il build aggiorna moduli, stile e cache insieme, e pubblica `version.json`. L’app controlla la versione all’apertura, tornando in primo piano e periodicamente: una barra in alto propone **Aggiorna**, senza ricaricare durante la compilazione. Prima di ricaricare conserva le modifiche nella copia locale ricordata o chiede di sincronizzarle. In impostazioni è disponibile anche **Controlla aggiornamenti**. Dopo il primo passaggio a questa versione occorre una ricarica manuale per attivare l’avviso sui rilasci successivi. **Ricarica l’app anche sugli altri dispositivi prima di modificare dati con una nuova versione.** I file precedenti restano leggibili; richieste e telefono sono informazioni facoltative e non impongono una migrazione iniziale.
 
 I test usano dati inventati e API GitHub simulate. L’accesso reale richiede le credenziali del partecipante.
 

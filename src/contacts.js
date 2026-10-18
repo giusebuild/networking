@@ -12,6 +12,17 @@ export function whatsappURL(phone, text = '') {
   const number = normalizePhone(phone); if (!number) return '';
   return `https://wa.me/${number.slice(1)}${text ? `?text=${encodeURIComponent(String(text).slice(0, 3000))}` : ''}`;
 }
+export function normalizeEmail(value) {
+  const text = String(value || '').trim().replace(/^mailto:/i, '');
+  if (!text) return '';
+  if (text.length > 254 || !/^[^\s@<>?&#]+@[^\s@<>?&#]+\.[^\s@<>?&#]+$/.test(text)) throw new Error('Inserisci un’email valida, come nome@azienda.it.');
+  const at = text.lastIndexOf('@'); return text.slice(0, at) + '@' + text.slice(at + 1).toLowerCase();
+}
+export function mailtoURL(email, subject = 'Possibile collaborazione', body = '') {
+  const address = normalizeEmail(email); if (!address) return '';
+  const query = new URLSearchParams({ subject: subject.replace(/[\r\n]/g, ' ').slice(0, 200), body: String(body).slice(0, 12000) });
+  return `mailto:${encodeURIComponent(address).replace('%40', '@')}?${query}`;
+}
 const unescape = text => text.replace(/\\[nN]/g, '\n').replace(/\\([,;\\])/g, '$1');
 export function parseVCards(text) {
   if (new TextEncoder().encode(String(text)).length > 900000) throw new Error('File troppo grande (massimo 900 KB).');
@@ -45,6 +56,7 @@ export function personContactActions(person, viewerId) {
     if (referent) actions.push({ type: 'introduction', authorId: referent.authorId });
   }
   if (direct && person.phone) actions.push({ type: 'whatsapp', href: whatsappURL(person.phone, `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`) });
+  if (direct && person.email) actions.push({ type: 'email', href: mailtoURL(person.email, 'Possibile collaborazione', `Ciao ${person.name}, mi piacerebbe confrontarmi con te per una possibile collaborazione.`) });
   if (person.linkedin) actions.push({ type: 'linkedin', href: normalizeLinkedIn(person.linkedin) });
   if (!actions.length) actions.push({ type: !person.memberId || person.memberId === viewerId ? 'add-contact' : 'add-relationship' });
   return actions;

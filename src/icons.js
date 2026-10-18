@@ -3,5 +3,8 @@ const icons = {"network":[["rect",{"x":"16","y":"16","width":"6","height":"6","r
 icons['briefcase'] = [['rect', { x: '3', y: '7', width: '18', height: '14', rx: '2' }], ['path', { d: 'M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12a20 20 0 0 0 18 0M10 12v3h4v-3' }]];
 icons['message-circle'] = [['path', { d: 'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z' }]];
 icons['arrow-up-right'] = [['path', { d: 'M7 17 17 7M7 7h10v10' }]];
+icons['arrow-right'] = [['path', { d: 'M5 12h14m-6-6 6 6-6 6' }]];
+icons['clipboard'] = [['rect', { x: '8', y: '2', width: '8', height: '4', rx: '1' }], ['path', { d: 'M8 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3' }]];
+icons['send'] = [['path', { d: 'm22 2-7 20-4-9-9-4 20-7ZM22 2 11 13' }]];
 export function icon(name) { const nodes=icons[name]||icons["network"]; return `<svg class="rs-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${nodes.map(([tag,attrs])=>`<${tag} ${Object.entries(attrs).map(([k,v])=>`${k}="${v}"`).join(" ")}/>`).join("")}</svg>`; }
 export function hydrateIcons(root=document) { root.querySelectorAll("[data-lucide]").forEach(el=>{el.outerHTML=icon(el.dataset.lucide);}); }

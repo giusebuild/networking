@@ -27,13 +27,14 @@ export function validateNetwork(data) {
       check(validKey(key), 'identificatore');
       if (record === null) continue; // Tombstones preserve deletions across devices.
       check(plain(record) && record.id === key, `record ${table}`);
-      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone'] : table === 'contributions' ? ['need'] : [])];
+      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId'] : [])];
       check(Object.keys(record).every(k => allowed.includes(k)) && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
       for (const [field, value] of Object.entries(record)) {
         check(!dangerous.has(field), 'campo riservato');
         if (field === 'need') {
           check(value === null || (plain(value) && Object.keys(value).length === 4 && ['text', 'skills', 'markets', 'updatedAt'].every(k => Object.hasOwn(value, k)) && string(value.text, 1500) && value.text.trim() && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)) && ['skills', 'markets'].every(k => Array.isArray(value[k]) && value[k].length <= 40 && value[k].every(v => string(v, 80) && v.trim()))), 'richiesta');
         }
+        else if (field === 'profileRequestId') check(value === '' || (typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)), 'richiesta di compilazione');
         else if (['skills', 'markets', 'interests'].includes(field)) check(Array.isArray(value) && value.length <= 40 && value.every(v => string(v, 80) && v.trim()), 'tag');
         else if (field === 'memberId') check(value === null || /^\d+$/.test(value), 'membro');
         else check(string(value), `campo ${field}`);
@@ -42,6 +43,7 @@ export function validateNetwork(data) {
       if (table === 'people') {
         check(record.name.trim() && record.name.length <= 160, 'nome');
         if (record.linkedin) { try { normalizeLinkedIn(record.linkedin); } catch { check(false, 'profilo LinkedIn'); } }
+        if (record.email) { try { normalizeEmail(record.email); } catch { check(false, 'email'); } }
         if (record.phone) check(/^\+[1-9]\d{5,14}$/.test(record.phone), 'telefono con prefisso internazionale');
       }
       if (table === 'contributions') check(COLLABORATION.includes(record.collaboration), 'collaborazioni');
@@ -195,15 +197,15 @@ export function mergeImport(current, incoming) {
 }
 const csvCell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"';
 export function exportCSV(data) {
-  const rows = [['ID persona', 'Nome', 'Presentazione breve', 'Conosciuto da', 'Da coinvolgere per', 'Competenze', 'Settori', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note', 'LinkedIn', 'Cerca', 'Competenze cercate', 'Settori cercati', 'Richiesta aggiornata', 'Telefono']];
+  const rows = [['ID persona', 'Nome', 'Presentazione breve', 'Conosciuto da', 'Da coinvolgere per', 'Competenze', 'Settori', 'Interessi', 'Collaborazioni', 'Contesto', 'Dal', 'Rapporto', 'Ultimo contatto', 'Note', 'LinkedIn', 'Cerca', 'Competenze cercate', 'Settori cercati', 'Richiesta aggiornata', 'Telefono', 'Email', 'Testo originale']];
   for (const person of live(data.people)) {
     const p = viewPerson(data, person);
     const authors = new Set([...p.relationships.map(r => r.authorId), ...p.contributions.map(c => c.authorId)]);
     for (const authorId of authors) {
       const c = p.contributions.find(c => c.authorId === authorId), r = p.relationships.find(r => r.authorId === authorId);
-      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, p.linkedin, c?.need?.text, c?.need?.skills.join(', '), c?.need?.markets.join(', '), c?.need?.updatedAt, p.phone]);
+      rows.push([p.id, p.name, p.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, p.linkedin, c?.need?.text, c?.need?.skills.join(', '), c?.need?.markets.join(', '), c?.need?.updatedAt, p.phone, p.email, c?.presentation]);
     }
-    if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin, '', '', '', '', p.phone]);
+    if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin, '', '', '', '', p.phone, p.email, '']);
   }
   return '\ufeff' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
 }
@@ -216,3 +218,5 @@ export function makeNeed(previous, text, tags, now = new Date().toISOString()) {
   if (previous && equal(next, { text: previous.text, skills: previous.skills, markets: previous.markets })) return clone(previous);
   return { ...next, updatedAt: now };
 }
+
+import { normalizeEmail } from './contacts.js';
