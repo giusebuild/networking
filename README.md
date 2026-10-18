@@ -14,6 +14,12 @@ Le informazioni dei conoscenti conservano l’autore. Le dichiarazioni di un par
 
 **Rimuovi il tuo collegamento** conserva il lavoro degli altri; **Elimina contatto** è disponibile per una scheda esclusivamente propria, dopo conferma. I profili dei partecipanti non si eliminano come contatti.
 
+## Il tuo collegamento
+
+La scheda della persona mostra chi la conosce. **Modifica collegamento** apre un modulo breve: dove o tramite chi vi conoscete, da quando e quanto vi conoscete. Le quattro scelte sono facoltative e si possono deselezionare. **Note e ultimo contatto** è chiuso finché non serve. Il salvataggio aggiorna soltanto il proprio collegamento, senza cambiare l’offerta, le richieste, i recapiti o le osservazioni degli altri.
+
+La disponibilità generica non viene più richiesta, mostrata o usata nei filtri. L’interesse e i tempi si verificano nella conversazione su una collaborazione concreta. I precedenti valori restano nei dati e nei backup per compatibilità; non vengono cancellati salvando una scheda.
+
 ## Accesso al gruppo
 
 L’archivio è `giusebuild/networking-data`, privato. Non serve creare repository personali. Ogni partecipante usa **il proprio account GitHub e il proprio token**. L’identità è verificata e associata all’ID numerico stabile dell’account.

@@ -19,7 +19,7 @@ const q = s => root.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initials = v => v.split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 let user, api, sync, vault, demo = false, selected = null, mode = null, formBase, editingId = null;
-const emptyFilters = () => ({ skills: '', markets: '', interests: '', collaboration: '', knower: '', intent: '' });
+const emptyFilters = () => ({ skills: '', markets: '', interests: '', knower: '', intent: '' });
 let search = '', filters = emptyFilters();
 let allowSameName = false, pendingImport, confirmAction, vaultQueue = Promise.resolve(), vaultError = '', releaseLock;
 let autoTimer, verified = false, draftUndo = null, importedSuggestions = {}, joinGuideShown = false;
@@ -430,7 +430,7 @@ function resetUI() {
   filters = emptyFilters();
   q('#rs-search').value = '';
   for (const selector of ['#rs-people', '#rs-detail', '#team-members', '#rs-matches', '#conflict-items', '#rs-active-filters', '#quick-matches', '#rs-quick-filters']) q(selector).replaceChildren();
-  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#rs-relation-caption', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error', '#request-prefill-copy', '#request-description', '#request-qr-error']) q(selector).textContent = '';
+  for (const selector of ['#settings-identity', '#rs-account', '#import-summary', '#confirm-title', '#confirm-copy', '#rs-form-person', '#rs-form-eyebrow', '#intro-title', '#intro-status', '#quick-summary', '#quick-context', '#quick-error', '#quick-source-text', '#response-review', '#response-target', '#response-review-error', '#request-status', '#paste-response-error', '#request-prefill-copy', '#request-description', '#request-qr-error']) q(selector).textContent = '';
   q('#request-link').value = ''; q('#request-reply-input').value = ''; q('#response-existing').replaceChildren(); q('#paste-response-form').reset();
   for (const id of ['request-whatsapp', 'request-email']) { q('#' + id).removeAttribute('href'); q('#' + id).hidden = true; }
   q('#intro-message').value = '';
@@ -493,12 +493,8 @@ function detail(p) {
   if (!p) return '';
   const own = p.memberId === user.id, editable = !p.memberId || own, o = offer(p), mine = ownRelationship(p);
   const removable = !own && (mine || ownContribution(p) || (!p.memberId && p.createdBy === user.id && !p.relationships.length && !p.contributions.length));
-  const statuses = p.offering.filter(c => c.collaboration !== 'Da chiedere');
-  const statusValues = [...new Set(statuses.map(c => c.collaboration))];
-  const availability = statusValues.length > 1 ? 'Da verificare' : statusValues[0] === 'Aperto' ? 'Disponibile' : statusValues.length ? 'Non ora' : '';
-  const attribution = statuses.map(c => `${c.authorId === p.memberId ? 'Dichiarato' : 'Segnalato'} da ${nameOf(c.authorId)}`).join(' · ');
   let html = `<article class="rs-detail"><nav class="rs-detail-nav" aria-label="Azioni della scheda"><button type="button" class="rs-back" data-action="close">${icon('arrow-left')}Rete</button><div class="rs-detail-tools"><button type="button" class="rs-btn rs-edit-button" data-action="edit">${icon('pencil')}${editable ? p.declarations.length ? 'I tuoi appunti' : 'Modifica' : 'Il tuo appunto'}</button>${removable ? `<details class="rs-person-menu"><summary aria-label="Altre azioni per ${esc(p.name)}">${icon('ellipsis')}</summary><div><button type="button" class="rs-text-btn rs-danger" data-action="remove-person">${sharedPerson(p) ? 'Rimuovi il tuo collegamento' : 'Elimina contatto'}</button></div></details>` : ''}</div></nav>`;
-  html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}${availability ? `<span class="rs-availability" title="${esc(attribution)}" aria-label="${esc(availability + '. ' + attribution)}"><span class="rs-status-dot"></span>${availability}</span>` : ''}</div></div></div>`;
+  html += `<div class="rs-person-hero"><span class="rs-avatar" data-tone="${p.name.length % 4}">${esc(initials(p.name))}</span><div>${editable ? `<button type="button" class="rs-name-edit" data-edit-field="personName" aria-label="Modifica il nome di ${esc(p.name)}">${esc(p.name)}</button>` : `<h2>${esc(p.name)}</h2>`}${p.role ? `<p class="rs-role">${esc(p.role)}</p>` : ''}<div class="rs-person-badges">${own ? '<span class="rs-mini-label">Il tuo profilo</span>' : p.memberId ? '<span class="rs-mini-label">Team</span>' : ''}</div></div></div>`;
   html += `<section class="rs-reach"><h3>${own ? 'Come contattarti' : 'Come contattarlo'}</h3>${contactActionsHTML(p)}</section>`;
   const source = c => c.reported ? 'Dalla scheda compilata' : c.authorId === p.memberId ? `Dichiarato da ${nameOf(c.authorId)}` : `Aggiunto da ${c.authorId === user.id ? 'te' : nameOf(c.authorId)}`;
   html += `<section class="rs-person-offer"><h3 class="rs-intent-label">${icon('briefcase')}Offre</h3>${editable && !o?.reported ? `<button type="button" class="rs-editable rs-offer-edit" data-edit-field="personHelp"><span>${esc(o?.help || 'Aggiungi un contributo concreto…')}</span>${icon('pencil')}</button>` : o?.help ? `<p>${esc(o.help)}</p>` : ''}${o?.help ? `<span class="rs-source">${esc(source(o))}</span>` : ''}<div class="rs-tag-list">${tagLine(o?.reported ? [...o.skills, ...o.markets] : [...new Set([...p.skills, ...p.markets])])}${editable && !o?.reported ? `<button type="button" class="rs-add-tag" data-edit-field="skills" aria-label="Modifica tag del contributo">${icon('plus')}</button>` : ''}</div></section>`;
@@ -510,17 +506,16 @@ function detail(p) {
       const isMine = r.authorId === user.id;
       const context = [r.context, r.since && !norm(r.context).includes(norm(r.since)) ? `Dal ${r.since}` : ''].filter(Boolean).join(' · ');
       const content = `<span class="rs-connection-top"><span class="rs-connection-name">${icon('link')}${esc(isMine ? 'Tu' : nameOf(r.authorId))}</span>${r.level ? `<span class="rs-closeness">${esc(r.level)}</span>` : ''}${isMine ? icon('pencil') : ''}</span>${context ? `<span class="rs-context">${esc(context)}</span>` : isMine ? '<span class="rs-context rs-placeholder">Come vi conoscete?</span>' : ''}`;
-      html += `<section class="rs-relation">${isMine ? `<button type="button" class="rs-connection-edit" data-edit-field="personContext" aria-label="Modifica relazione">${content}</button>` : `<div class="rs-connection-view">${content}</div>`}${r.last || r.note ? `<details class="rs-note"><summary>Nota${r.last ? ` · ${esc(date(r.last))}` : ''}</summary>${r.note ? `<p>${esc(r.note)}</p>` : ''}</details>` : ''}${!isMine && !mine && !p.memberId ? `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('chevron-right')}</button>` : ''}</section>`;
+      html += `<section class="rs-relation">${isMine ? `<button type="button" class="rs-connection-edit" data-edit-field="personContext" aria-label="Modifica collegamento">${content}</button>` : `<div class="rs-connection-view">${content}</div>`}${r.last || r.note ? `<details class="rs-note"><summary>Nota${r.last ? ` · ${esc(date(r.last))}` : ''}</summary>${r.note ? `<p>${esc(r.note)}</p>` : ''}</details>` : ''}${!isMine && !mine && !p.memberId ? `<button type="button" class="rs-btn rs-primary rs-intro-action" data-introduction="${esc(r.authorId)}">Chiedi una presentazione${icon('chevron-right')}</button>` : ''}</section>`;
     }
     if (!mine) html += `<button type="button" class="rs-text-btn" data-action="relation">${icon('plus')}Lo conosco anch’io</button>`;
     html += '</section>';
   }
   if (!p.memberId && (mine || ownContribution(p) || p.createdBy === user.id)) html += `<button type="button" class="rs-btn rs-request-profile" data-action="request-profile">${icon('send')}Fai compilare la scheda</button>`;
   const others = p.contributions.filter(c => c !== o && (c.help || c.need?.text || c.presentation || c.skills.length || c.markets.length));
-  if (p.interests.length || others.length || p.phone || availability || o?.presentation) {
+  if (p.interests.length || others.length || p.phone || o?.presentation) {
     html += '<details class="rs-person-more"><summary>Altri dettagli' + icon('chevron-right') + '</summary><div class="rs-more-content">';
     if (o?.presentation) html += `<details class="rs-original"><summary>Testo originale</summary><p>${esc(o.presentation)}</p></details>`;
-    if (availability) html += `<div class="rs-tag-group"><span class="rs-tag-label">Collaborazioni · ${esc(availability)}</span><span class="rs-source">${esc(attribution)}</span></div>`;
     for (const [key, label] of [['interests', 'Interessi']]) if (p[key].length) html += `<div class="rs-tag-group"><span class="rs-tag-label">${label}</span><div class="rs-tag-list">${p[key].map(t => `<span class="rs-tag">${esc(t)}</span>`).join('')}</div></div>`;
     if (others.length) html += `<div class="rs-observation">${others.map(c => `<section class="rs-observed"><strong>${c.authorId === user.id ? 'I tuoi appunti' : esc(nameOf(c.authorId))}</strong><p>${esc(c.help)}</p><div class="rs-tag-list">${tagLine([...c.skills, ...c.markets])}</div>${c.need?.text ? `<p><strong>Cerca:</strong> ${esc(c.need.text)}</p>` : ''}${c.presentation ? `<details class="rs-original"><summary>Testo originale</summary><p>${esc(c.presentation)}</p></details>` : ''}${c.authorId === user.id ? '<button type="button" class="rs-text-btn" data-action="edit">Modifica i tuoi appunti</button>' : ''}</section>`).join('')}</div>`;
     if (p.phone) html += `<div class="rs-tag-group"><span class="rs-tag-label">Telefono</span><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`;
@@ -532,7 +527,7 @@ function editAt(field) {
   const relation = ['personContext', 'personSince', 'personLevel', 'personNote', 'personLast'].includes(field);
   openForm(selected === ownPersonId() ? 'profile' : relation ? 'relation' : 'edit');
   if (!mode) return;
-  if (['personRole', 'personLinkedin', 'personCollaboration', 'personPhone', 'personEmail'].includes(field)) q('#rs-tags-editor').open = true;
+  if (['personRole', 'personLinkedin', 'personPhone', 'personEmail'].includes(field)) q('#rs-tags-editor').open = true;
   if (field === 'personNote' || field === 'personLast') q('#rs-extra').open = true;
   if (['skills', 'markets', 'interests'].includes(field)) { offerTags.root.querySelector('.rs-smart-add').hidden = false; offerTags.root.querySelector('.rs-smart-toggle').setAttribute('aria-expanded', 'true'); }
   const target = ['skills', 'markets', 'interests'].includes(field) ? offerTags.input : q('#rs-form').elements[field];
@@ -569,7 +564,6 @@ function render() {
   const quickSkills = [...new Set([...(filters.skills ? [filters.skills] : []), ...frequent])].slice(0, 4);
   q('#rs-quick-filters').hidden = !quickSkills.length;
   q('#rs-quick-filters').innerHTML = quickSkills.map(tag => `<button type="button" class="rs-quick-filter" data-skill-filter="${esc(tag)}" aria-pressed="${norm(tag) === norm(filters.skills)}">${esc(tag)}${norm(tag) === norm(filters.skills) ? icon('x') : ''}</button>`).join('');
-  q('#rs-filter-collaboration').value = filters.collaboration;
   q('.rs-profile .rs-avatar').textContent = initials(data().members[user.id].name);
 }
 function clearFilters() { search = ''; q('#rs-search').value = ''; for (const k of Object.keys(filters)) filters[k] = ''; }
@@ -592,13 +586,12 @@ function allTagPools() { return Object.fromEntries(['skills', 'markets', 'intere
 function updateChoices() {
   const f = q('#rs-form').elements;
   for (const b of q('#rs-level-choices').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.level === f.personLevel.value));
-  for (const b of q('#rs-collaboration-choices').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.collaboration === f.personCollaboration.value));
 }
 function openForm(kind) {
   if (sync.pending) { showConflicts(); return; }
   const form = q('#rs-form'), f = form.elements, p = kind === 'new' ? null : person();
   if (kind !== 'new' && !p) return;
-  mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false; draftUndo = null; importedSuggestions = {};
+  mode = kind; form.dataset.mode = kind; formBase = clone(data()); editingId = p?.id || null; form.reset(); allowSameName = false; draftUndo = null; importedSuggestions = {};
   const own = kind === 'profile', relationOnly = kind === 'relation';
   q('#rs-personal-share').hidden = !own;
   q('#rs-extra').open = false; q('#rs-relation-details').open = relationOnly; q('#rs-tags-editor').open = false; q('#rs-matches').hidden = true; q('#rs-name-conflict').hidden = true; q('#rs-draft-applied').hidden = true;
@@ -608,15 +601,12 @@ function openForm(kind) {
   q('#rs-help-hint').textContent = 'Servizi, esperienza o contatti utili.';
   f.personHelp.placeholder = 'Es. Siti e prenotazioni online per studi medici';
   q('#rs-need-label').textContent = own ? 'Di cosa hai bisogno?' : 'Di cosa ha bisogno?';
-  q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Come vi conoscete?' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
+  q('#rs-form-title').textContent = own ? 'Il tuo profilo' : relationOnly ? 'Il tuo collegamento' : kind === 'new' ? 'Aggiungi una persona' : p.memberId ? 'Il tuo punto di vista' : 'Modifica persona';
   q('#rs-form-eyebrow').hidden = !relationOnly;
   q('#rs-form-eyebrow').textContent = own ? 'Il tuo profilo' : relationOnly ? p.name : 'La vostra rete';
-  q('#rs-form-person').hidden = false;
-  q('#rs-form-person').textContent = own ? 'Aiuta gli altri a capire quando coinvolgerti.' : relationOnly ? 'Una persona, più collegamenti. Aggiungi il tuo.' : 'Basta ciò che sai. Il resto può arrivare dopo.';
-  q('#rs-relation-caption').textContent = p ? `Come puoi mettere il gruppo in contatto con ${p.name}.` : 'Il collegamento che il gruppo può attivare.';
-  q('#rs-availability-label').textContent = own ? 'Vuoi essere coinvolto in nuove collaborazioni?' : 'Disponibilità a collaborare';
-  q('#rs-availability-unknown').textContent = own ? 'Non indicata' : 'Da verificare';
-  q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? (ownRelationship(p) ? 'Salva relazione' : 'Aggiungi relazione') : 'Salva persona') + icon('check');
+  q('#rs-form-person').hidden = relationOnly;
+  q('#rs-form-person').textContent = own ? 'Aiuta gli altri a capire quando coinvolgerti.' : relationOnly ? '' : 'Basta ciò che sai. Il resto può arrivare dopo.';
+  q('#rs-save').innerHTML = (own ? 'Salva profilo' : relationOnly ? 'Salva' : 'Salva persona') + icon('check');
   f.personName.required = !relationOnly; f.personName.disabled = !own && !!p?.memberId;
   f.personEmail.disabled = !own && !!p?.memberId; f.personEmail.setCustomValidity('');
   f.personRole.disabled = !own && !!p?.memberId; f.personLinkedin.disabled = !own && !!p?.memberId; f.personPhone.disabled = !own && !!p?.memberId; f.personLinkedin.setCustomValidity(''); f.personPhone.setCustomValidity('');
@@ -624,7 +614,6 @@ function openForm(kind) {
   const c = p ? ownContribution(p) : null, r = p ? ownRelationship(p) : null;
   if (p) { const stored = data().people[p.id]; f.personName.value = stored.name; f.personRole.value = stored.role; f.personHelp.value = c?.help || ''; f.personLinkedin.value = stored.linkedin || ''; f.personPhone.value = stored.phone || ''; f.personEmail.value = stored.email || ''; f.personPresentation.value = c?.presentation || ''; f.personNeed.value = c?.need?.text || ''; }
   q('#rs-source').hidden = relationOnly || !c?.presentation; q('#rs-source').open = false;
-  f.personCollaboration.value = c?.collaboration || 'Da chiedere';
   for (const [field, key] of [['Context', 'context'], ['Since', 'since'], ['Level', 'level'], ['Last', 'last'], ['Note', 'note']]) f['person' + field].value = r?.[key] || '';
   offerTags.set(c || {}, allTagPools()); requestTags.set(c?.need || {}, allTagPools());
   updateChoices(); refreshSuggestions(); updateProfileLinks();
@@ -673,7 +662,7 @@ function saveForm(e) {
       if (!relationOnly) {
         if (!p.memberId || own) { p.name = name; p.role = f.personRole.value.trim(); if (linkedin || Object.hasOwn(p, 'linkedin')) p.linkedin = linkedin; if (phone || Object.hasOwn(p, 'phone')) p.phone = phone; if (email || Object.hasOwn(p, 'email')) p.email = email; }
         if (own) d.members[user.id].name = name;
-        d.contributions[key] = { ...formBase.contributions[key], id: key, personId: id, authorId: user.id, help: f.personHelp.value.trim(), ...(f.personPresentation.value.trim() || formBase.contributions[key]?.presentation !== undefined ? { presentation: f.personPresentation.value.trim() } : {}), ...offerTags.values, collaboration: f.personCollaboration.value, ...(() => { const need = makeNeed(formBase.contributions[key]?.need, f.personNeed.value, requestTags.values); return need === undefined ? {} : { need }; })() };
+        d.contributions[key] = { ...formBase.contributions[key], id: key, personId: id, authorId: user.id, help: f.personHelp.value.trim(), ...(f.personPresentation.value.trim() || formBase.contributions[key]?.presentation !== undefined ? { presentation: f.personPresentation.value.trim() } : {}), ...offerTags.values, collaboration: formBase.contributions[key]?.collaboration || 'Da chiedere', ...(() => { const need = makeNeed(formBase.contributions[key]?.need, f.personNeed.value, requestTags.values); return need === undefined ? {} : { need }; })() };
       }
       if (showRelationship) d.relationships[key] = { id: key, personId: id, authorId: user.id, context: f.personContext.value.trim(), since: f.personSince.value.trim(), level: f.personLevel.value, last: f.personLast.value, note: f.personNote.value.trim() };
     }, formBase);
@@ -815,8 +804,6 @@ root.addEventListener('click', async e => {
       if (selected !== ownPersonId() && !ownRelationship(person())) openForm('relation'); else focusDetail(); return;
     }
     if (b.dataset.level !== undefined) { const f = q('#rs-form').elements; f.personLevel.value = f.personLevel.value === b.dataset.level ? '' : b.dataset.level; updateChoices(); return; }
-    if (b.dataset.collaboration) { q('#rs-form').elements.personCollaboration.value = b.dataset.collaboration; updateChoices(); return; }
-    if (b.dataset.context) { const f = q('#rs-form').elements; f.personContext.value = b.dataset.context + ' · '; f.personContext.focus(); return; }
     const a = b.dataset.action;
     if (a === 'app-update') { await applyAppUpdate(); return; }
     if (a === 'request-profile' || a === 'request-new-profile') { await requestProfile(a === 'request-new-profile' ? 'new' : selected); return; }
