@@ -1,3 +1,4 @@
+import { shareNeeds, preserveLegacyNeeds } from './needs.js';
 import { keyFor, norm, live, viewPerson } from './model.js';
 import { normalizePhone, normalizeEmail } from './contacts.js';
 import { normalizeLinkedIn } from './profile.js';
@@ -12,30 +13,32 @@ function text(value, limit, required = false) {
 }
 function context(value) {
   for (const k of ['personId', 'authorId', 'requestId']) text(value[k], 80, true);
-  if (![1, 2].includes(value.v) || !/^[a-zA-Z0-9_-]{1,80}$/.test(value.personId) || !/^\d{1,20}$/.test(value.authorId) || !UUID.test(value.requestId) || (value.personId === 'new' && value.v !== 2)) fail();
+  if (![1, 2, 3].includes(value.v) || !/^[a-zA-Z0-9_-]{1,80}$/.test(value.personId) || !/^\d{1,20}$/.test(value.authorId) || !UUID.test(value.requestId) || (value.personId === 'new' && ![2, 3].includes(value.v))) fail();
 }
 export function validateInvitation(value) {
-  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', 'facilitator', 'replyPhone', 'replyEmail', ...(value?.v === 2 ? ['prefill'] : [])]); context(value);
+  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', 'facilitator', 'replyPhone', 'replyEmail', ...(value?.v >= 2 ? ['prefill'] : [])]); context(value);
   if (value.kind !== 'invite') fail();
   text(value.facilitator, 160, true); text(value.replyPhone, 40); text(value.replyEmail, 254);
   normalizePhone(value.replyPhone); normalizeEmail(value.replyEmail);
-  if (value.v === 2) { shape(value.prefill, Object.keys(PROFILE_FIELDS)); validateProfileFields(value.prefill, false); }
+  if (value.v >= 2) { shape(value.prefill, [...Object.keys(PROFILE_FIELDS), ...(value.v === 3 ? ['needs'] : [])]); validateProfileFields(value.prefill, false); }
   return value;
 }
 export function validateResponse(value) {
-  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 2 ? ['responseId'] : []), ...(Object.hasOwn(value || {}, 'cardId') ? ['cardId'] : [])]); context(value);
-  if (value.kind !== 'response' || (value.v === 2 && (typeof value.responseId !== 'string' || !UUID.test(value.responseId)))) fail();
+  shape(value, ['v', 'kind', 'personId', 'authorId', 'requestId', ...Object.keys(PROFILE_FIELDS), ...(value?.v === 3 ? ['needs'] : []), ...(value?.v >= 2 ? ['responseId'] : []), ...(Object.hasOwn(value || {}, 'cardId') ? ['cardId'] : [])]); context(value);
+  if (value.kind !== 'response' || (value.v >= 2 && (typeof value.responseId !== 'string' || !UUID.test(value.responseId)))) fail();
   validateProfileFields(value);
   if (Object.hasOwn(value, 'cardId') && (typeof value.cardId !== 'string' || !UUID.test(value.cardId))) fail();
   return value;
 }
 export function encodeFormLink(value, baseURL) {
   const invite = value.kind === 'invite'; (invite ? validateInvitation : validateResponse)(value);
-  const compact = invite && value.v === 2 && value.personId === 'new' && Object.values(value.prefill).every(v => v === '');
+  const compact = invite && value.v >= 2 && value.personId === 'new' && Object.values(value.prefill).every(v => v === '');
   const payload = compact ? [2, value.authorId, value.requestId, value.facilitator, value.replyPhone, value.replyEmail] : value;
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  if (bytes.length > 19500) throw new Error('Scheda troppo lunga per il link. Riduci i testi prima di condividere.');
   const encoded = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
   const url = new URL(invite ? './scheda.html' : './', baseURL);
+  if (encoded.length > 26000) throw new Error('Scheda troppo lunga per il link. Riduci i testi prima di condividere.');
   url.search = ''; url.hash = `${compact ? 'i' : invite ? 'invite' : 'response'}=${encoded}`;
   return url.href;
 }
@@ -76,7 +79,8 @@ export function profileInvitation(data, userId, personId = 'new') {
     for (const [k, n] of Object.entries(PROFILE_FIELDS)) prefill[k] = String((c?.reply ? c.reply[k] : (k === 'help' ? c?.help : k === 'need' ? c?.need?.text : p?.[k])) || '').slice(0, n);
     if (!prefill.help && !c?.reply) prefill.help = [...(c?.skills || []), ...(c?.markets || [])].join(' · ').slice(0, 1500);
   }
-  return validateInvitation({ v: 2, kind: 'invite', personId, authorId: userId, requestId, facilitator: member.name, replyPhone: me.phone || '', replyEmail: me.email || '', prefill });
+  if (personId !== 'new') { const c = data.contributions[keyFor(personId, userId)]; if (c?.reply?.needs) prefill.needs = structuredClone(c.reply.needs); else if (c?.needs && !c.reply) prefill.needs = shareNeeds(c); }
+  return validateInvitation({ v: Object.hasOwn(prefill, 'needs') ? 3 : 2, kind: 'invite', personId, authorId: userId, requestId, facilitator: member.name, replyPhone: me.phone || '', replyEmail: me.email || '', prefill });
 }
 export function responseCandidates(data, response) {
   const p = cleanProfile(response), normalizers = { phone: normalizePhone, email: normalizeEmail, linkedin: normalizeLinkedIn };
@@ -118,7 +122,9 @@ export function applyProfileResponse(data, response, userId, now = new Date().to
   if (response.personId === 'new' && !data.relationships[key]) data.relationships[key] = { id: key, personId: person.id, authorId: userId, context: '', since: '', level: '', last: '', note: '' };
   const c = data.contributions[key] ||= { id: key, personId: person.id, authorId: userId, help: '', skills: [], markets: [], interests: [], collaboration: 'Da chiedere' };
   // The response never replaces observations, custom tags, needs or known details.
-  c.reply = { ...fields, ...(response.cardId ? { cardId: response.cardId } : {}), responseId: response.responseId || response.requestId, updatedAt: now };
+  const retained = preserveLegacyNeeds(c.reply, fields);
+  if (Object.hasOwn(retained, 'needs')) data.schemaVersion = 2;
+  c.reply = { ...retained, ...(response.cardId ? { cardId: response.cardId } : {}), responseId: response.responseId || response.requestId, updatedAt: now };
   if (response.personId !== 'new') c.profileRequestId = '';
   for (const k of ['role', 'phone', 'email', 'linkedin']) if (!person[k] && fields[k]) person[k] = fields[k];
   return person.id;

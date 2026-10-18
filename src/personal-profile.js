@@ -1,3 +1,5 @@
+import { NeedsEditor } from './needs-editor.js';
+import { profileNeeds } from './needs.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { PROFILE_FIELDS } from './profile-card.js';
 import { makePersonalCard, personalCardLink, readPersonalCardLink, loadPersonalCard, rememberPersonalCard, forgetPersonalCard } from './personal-card.js';
@@ -5,11 +7,13 @@ import { personContactActions } from './contacts.js';
 import { hydrateIcons, icon } from './icons.js';
 const root = document.getElementById('rete-tag'), q = s => root.querySelector(s);
 const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const needsEditor = new NeedsEditor(q('#personal-needs-editor'));
 let saved = null, current = null;
 try { saved = loadPersonalCard(); } catch { q('#personal-status').textContent = 'Copia locale non disponibile. Puoi ricreare la tua scheda o aprire il link che hai conservato.'; }
 function edit(card = null) {
   current = card; q('#personal-cancel').hidden = !card;
-  for (const k of Object.keys(PROFILE_FIELDS)) q('#personal-form').elements[k].value = card?.profile[k] || '';
+  for (const k of Object.keys(PROFILE_FIELDS).filter(k => k !== 'need')) q('#personal-form').elements[k].value = card?.profile[k] || '';
+  needsEditor.setProfile(card?.profile || {});
   refreshOfferGuidance(root);
   q('#personal-view').hidden = true; q('#personal-editor').hidden = false; q('#personal-form').elements.name.focus();
 }
@@ -18,7 +22,9 @@ function view(card) {
   q('#personal-editor').hidden = true; q('#personal-view').hidden = false;
   q('#personal-name').textContent = p.name; q('#personal-role').textContent = p.role; q('#personal-role').hidden = !p.role;
   q('#personal-help').textContent = p.help; q('#personal-offer').hidden = !p.help;
-  q('#personal-need-copy').textContent = p.need; q('#personal-need').hidden = !p.need;
+  const requested = profileNeeds(p); q('#personal-need-copy').replaceChildren(); q('#personal-need-copy').className = 'rs-shared-needs';
+  for (const n of requested) { const item = document.createElement('p'); item.textContent = n.text; q('#personal-need-copy').append(item); }
+  q('#personal-need').hidden = !requested.length;
   q('#personal-share').hidden = !navigator.share; q('#personal-copy').classList.toggle('rs-primary', !navigator.share);
   q('#personal-link').value = link; q('#personal-link').hidden = true;
   const add = new URL('./', window.location.href); add.hash = new URL(link).hash; q('#personal-add').href = add.href;
@@ -35,7 +41,7 @@ q('#personal-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
     const f = event.currentTarget.elements;
-    const fields = Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, f[k].value]));
+    const fields = { ...Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, k === 'need' ? '' : f[k].value])), needs: needsEditor.profile() };
     const card = makePersonalCard(fields, current);
     let note = 'Scheda pronta. Il link può essere riutilizzato con più persone.';
     if (q('#personal-remember').checked) {

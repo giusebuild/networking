@@ -4,6 +4,18 @@ Una rete condivisa di persone e collegamenti professionali. Interfaccia statica 
 
 **[Apri l’app](https://giusebuild.github.io/networking/)** · La demo contiene soltanto persone inventate e le sue modifiche sono temporanee.
 
+## Esigenze multiple · 1.12.0
+
+**Cerco** contiene più esigenze indipendenti: introduzioni commerciali, spazi, professionisti, risorse o confronti. Nel profilo, nei contatti, nell’inserimento rapido e nei moduli condivisi, **Aggiungi esigenza** crea un’altra voce. Basta una frase; i tag sono facoltativi e distinti per voce. Massimo 20 esigenze conservate per scheda e autore.
+
+Ogni esigenza si modifica o rimuove separatamente. **Risolta** nella scheda la chiude con un tap; nel modulo è possibile riaprirla da **Risolte**. Le azioni nel modulo si confermano con il normale Salva. Le risolte restano nell’archivio e nelle esportazioni, mentre ricerca e condivisione usano soltanto quelle attive.
+
+Cerca mostra le esigenze pertinenti senza duplicare la persona. La scheda completa mantiene tutte le esigenze attive, con provenienza e azioni di contatto riferite a ciascuna voce. WhatsApp, email e il messaggio al facilitatore riprendono l’esigenza scelta; nessun invio automatico.
+
+Il testo precedente resta una sola voce completa, senza divisioni automatiche. JSON conserva identificativi, tag, date e stato; CSV riporta anche le risolte. Le modifiche su esigenze diverse si uniscono, quelle sulla stessa voce richiedono confronto. I vecchi link restano leggibili e non possono cancellare una lista dichiarata più recente; appunti e risposte restano separati.
+
+**Aggiornare l’app su tutti i dispositivi prima di modificare l’archivio.** Al primo salvataggio nel nuovo formato l’archivio passa alla versione 2: le app precedenti ne interrompono la lettura e non possono sovrascrivere le esigenze multiple. Non cambiano accesso, repository o infrastruttura. Nessun dato privato è incluso nel sito.
+
 ## Uso
 
 **Aggiungi** apre una scheda breve: nome, **Per cosa lo coinvolgeresti?**, **Di cosa ha bisogno?**. Solo il nome è obbligatorio. Puoi incollare una presentazione o appunti per preparare una bozza. I tag proposti distinguono capacità offerte, capacità cercate, settori e interessi; sono correggibili e vengono confermati insieme alla scheda. I suggerimenti usano regole locali, non verificano le capacità della persona e non inviano testo a servizi AI.

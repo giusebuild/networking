@@ -1,3 +1,4 @@
+import { needEntries, needsMap, validateNeeds, profileNeeds } from './needs.js';
 import { PROFILE_FIELDS, UUID, validateProfileFields, reportedContribution } from './profile-card.js';
 export const TABLES = ['members', 'people', 'contributions', 'relationships'];
 export const COLLABORATION = ['Da chiedere', 'Aperto', 'Non disponibile'];
@@ -20,7 +21,7 @@ const shapes = {
   relationships: ['id', 'personId', 'authorId', 'context', 'since', 'level', 'last', 'note'],
 };
 export function validateNetwork(data) {
-  check(plain(data) && data.schemaVersion === 1, 'versione sconosciuta');
+  check(plain(data) && [1, 2].includes(data.schemaVersion), 'versione sconosciuta');
   check(Object.keys(data).length === 5 && Object.keys(data).every(k => k === 'schemaVersion' || TABLES.includes(k)), 'struttura sconosciuta');
   for (const table of TABLES) {
     check(plain(data[table]) && Object.keys(data[table]).length <= 15000, `tabella ${table}`);
@@ -28,15 +29,17 @@ export function validateNetwork(data) {
       check(validKey(key), 'identificatore');
       if (record === null) continue; // Tombstones preserve deletions across devices.
       check(plain(record) && record.id === key, `record ${table}`);
-      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'presentation', 'profileRequestId', 'reply'] : table === 'members' ? ['profileInviteId', 'profileCardId'] : [])];
+      const allowed = [...shapes[table], ...(table === 'people' ? ['linkedin', 'phone', 'email'] : table === 'contributions' ? ['need', 'needs', 'presentation', 'profileRequestId', 'reply'] : table === 'members' ? ['profileInviteId', 'profileCardId'] : [])];
       check(Object.keys(record).every(k => allowed.includes(k)) && shapes[table].every(k => Object.hasOwn(record, k)), `campi ${table}`);
       for (const [field, value] of Object.entries(record)) {
         check(!dangerous.has(field), 'campo riservato');
-        if (field === 'need') {
+        if (field === 'needs') { check(data.schemaVersion === 2, 'aggiorna l’app per le esigenze multiple'); validateNeeds(value); }
+        else if (field === 'need') {
           check(value === null || (plain(value) && Object.keys(value).length === 4 && ['text', 'skills', 'markets', 'updatedAt'].every(k => Object.hasOwn(value, k)) && string(value.text, 1500) && value.text.trim() && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)) && ['skills', 'markets'].every(k => Array.isArray(value[k]) && value[k].length <= 40 && value[k].every(v => string(v, 80) && v.trim()))), 'richiesta');
         }
         else if (field === 'reply') {
-          check(plain(value) && Object.keys(value).length === (Object.hasOwn(value, 'cardId') ? 10 : 9) && (!Object.hasOwn(value, 'cardId') || (typeof value.cardId === 'string' && UUID.test(value.cardId))) && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
+          check(plain(value) && Object.keys(value).length === (Object.hasOwn(value, 'cardId') ? 10 : 9) + (Object.hasOwn(value, 'needs') ? 1 : 0) && (!Object.hasOwn(value, 'cardId') || (typeof value.cardId === 'string' && UUID.test(value.cardId))) && [...Object.keys(PROFILE_FIELDS), 'responseId', 'updatedAt'].every(k => Object.hasOwn(value, k)) && typeof value.responseId === 'string' && UUID.test(value.responseId) && /^\d{4}-\d{2}-\d{2}T/.test(value.updatedAt) && Number.isFinite(Date.parse(value.updatedAt)), 'risposta alla scheda');
+          check(!Object.hasOwn(value, 'needs') || data.schemaVersion === 2, 'versione esigenze');
           try { validateProfileFields(value); } catch { check(false, 'campi risposta'); }
         }
         else if (['profileRequestId', 'profileInviteId', 'profileCardId'].includes(field)) check(value === '' || (typeof value === 'string' && UUID.test(value)), 'richiesta di compilazione');
@@ -108,11 +111,26 @@ export function removeFromNetwork(data, personId, userId) {
 }
 // Three-way merge: unrelated fields merge; true collisions require a human choice.
 export function mergeNetworks(base, local, remote) {
+  // Reconcile the old single field with the new list before comparing edits.
+  // In particular, a legacy edit racing the first list save must be a conflict,
+  // rather than a hidden change to a now-unused field.
+  const keys = new Set([...Object.keys(base.contributions), ...Object.keys(local.contributions), ...Object.keys(remote.contributions)]);
+  const upgraded = [...keys].filter(k => [base, local, remote].some(d => d.contributions[k]?.needs));
+  if (upgraded.length) {
+    [base, local, remote] = [base, local, remote].map(d => {
+      const copy = clone(d); copy.schemaVersion = 2;
+      for (const key of upgraded) if (copy.contributions[key]) {
+        copy.contributions[key].needs = needsMap(copy.contributions[key]);
+        delete copy.contributions[key].need;
+      }
+      return copy;
+    });
+  }
   let conflicts = [];
   function merge(b, l, r, path) {
     if (equal(l, r) || equal(r, b)) return l === undefined ? undefined : clone(l);
     if (equal(l, b)) return r === undefined ? undefined : clone(r);
-    if (path[0] === 'contributions' && ['need', 'reply'].includes(path.at(-1))) {
+    if (path[0] === 'contributions' && (['need', 'reply'].includes(path.at(-1)) || (path.length === 4 && path[2] === 'needs'))) {
       conflicts.push({ path, base: b, local: l, remote: r });
       return l === undefined ? undefined : clone(l);
     }
@@ -168,11 +186,15 @@ export function viewPerson(data, person) {
   const offering = self ? [self] : [...declarations, ...contributions];
   const latest = self ? null : contributions.filter(c => c.reply).sort((a, b) => b.reply.updatedAt.localeCompare(a.reply.updatedAt))[0]?.reply;
   return { ...person, ...Object.fromEntries(['role', 'phone', 'email', 'linkedin'].filter(k => latest?.[k]).map(k => [k, latest[k]])), contributions, declarations, relationships, self,
-    offering, seeking: offering.filter(c => c.need?.text),
-    needSkills: [...new Set(offering.flatMap(c => c.need?.skills || []))],
-    needMarkets: [...new Set(offering.flatMap(c => c.need?.markets || []))],
+    offering, seeking: offering.flatMap(c => needEntries(c).map(n => ({ ...c, needId: n.id, need: n }))),
+    needSkills: [...new Set(offering.flatMap(c => needEntries(c).flatMap(n => n.skills)))],
+    needMarkets: [...new Set(offering.flatMap(c => needEntries(c).flatMap(n => n.markets)))],
     ...Object.fromEntries(['skills', 'markets', 'interests'].map(k => [k, [...new Map(offering.flatMap(c => c[k]).map(value => [norm(value), value])).values()]])),
   };
+}
+export function matchingNeeds(p, { search = '', filters = {} } = {}) {
+  const words = norm(search).trim().split(/\s+/).filter(Boolean);
+  return p.seeking.filter(c => ['skills', 'markets'].every(k => !filters[k] || c.need[k].some(t => norm(t) === norm(filters[k]))) && words.every(w => norm([p.name, p.role, c.need.text, ...c.need.skills, ...c.need.markets].join(' ')).includes(w)));
 }
 export function findPeople(data, userId, { search = '', filters = {} } = {}) {
   const words = norm(search).trim().split(/\s+/).filter(Boolean);
@@ -181,7 +203,7 @@ export function findPeople(data, userId, { search = '', filters = {} } = {}) {
     Object.entries(filters).every(([k, v]) => {
       if (!v) return true;
       if (k === 'knower') return p.relationships.some(r => r.authorId === v);
-      if (k === 'intent') return v === 'need' ? p.seeking.length > 0 : p.offering.some(c => c.help || c.skills.length);
+      if (k === 'intent') return v === 'need' ? matchingNeeds(p, { search, filters }).length > 0 : p.offering.some(c => c.help || c.skills.length);
       if (k === 'collaboration') return p.offering.some(c => c.collaboration === v);
       if (k === 'skills' || k === 'markets') {
         const offered = filters.intent === 'need' ? [] : p[k];
@@ -210,10 +232,10 @@ export function exportCSV(data) {
     const authors = new Set([...p.relationships.map(r => r.authorId), ...p.contributions.map(c => c.authorId)]);
     for (const authorId of authors) {
       const c = p.contributions.find(c => c.authorId === authorId), r = p.relationships.find(r => r.authorId === authorId);
-      rows.push([p.id, person.name, person.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, person.linkedin, c?.need?.text, c?.need?.skills.join(', '), c?.need?.markets.join(', '), c?.need?.updatedAt, person.phone, person.email, c?.presentation, 'Appunti']);
+      rows.push([p.id, person.name, person.role, data.members[authorId]?.name, c?.help, c?.skills.join(', '), c?.markets.join(', '), c?.interests.join(', '), c?.collaboration, r?.context, r?.since, r?.level, r?.last, r?.note, person.linkedin, needEntries(c, false).map(n => (n.status === 'resolved' ? '[Risolta] ' : '') + n.text).join('\n'), needEntries(c, false).flatMap(n => n.skills).join(', '), needEntries(c, false).flatMap(n => n.markets).join(', '), needEntries(c, false).map(n => n.updatedAt).join('\n'), person.phone, person.email, c?.presentation, 'Appunti']);
       if (c?.reply) {
         const reported = reportedContribution(c), reply = c.reply;
-        rows.push([p.id, reply.name, reply.role, data.members[authorId]?.name, reply.help, reported.skills.join(', '), reported.markets.join(', '), '', '', '', '', '', '', '', reply.linkedin, reply.need, reported.need?.skills.join(', '), reported.need?.markets.join(', '), reply.updatedAt, reply.phone, reply.email, '', 'Scheda compilata']);
+        rows.push([p.id, reply.name, reply.role, data.members[authorId]?.name, reply.help, reported.skills.join(', '), reported.markets.join(', '), '', '', '', '', '', '', '', reply.linkedin, profileNeeds(reply).map(n => n.text).join('\n'), needEntries(reported).flatMap(n => n.skills).join(', '), needEntries(reported).flatMap(n => n.markets).join(', '), reply.updatedAt, reply.phone, reply.email, '', 'Scheda compilata']);
       }
     }
     if (!authors.size) rows.push([p.id, p.name, p.role, '', '', '', '', '', '', '', '', '', '', '', p.linkedin, '', '', '', '', p.phone, p.email, '', '']);

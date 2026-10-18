@@ -268,3 +268,24 @@ body{margin:0}button,input,textarea,select{font:inherit}button,summary,a{cursor:
 #rete-tag .rs-public-back{display:inline-flex;align-items:center;gap:6px;color:var(--rs-accent);text-decoration:none;min-height:44px;flex-shrink:0}
 #rete-tag.rs-public-form .rs-top{position:sticky;top:0;z-index:5;background:var(--rs-bg)}
 #rete-tag #rs-close-form.rs-back{flex-shrink:0;min-height:44px}
+
+/* Independent needs, shared by all profile forms. */
+#rete-tag .rs-needs-active { display: grid; gap: 14px; }
+#rete-tag .rs-need-item { min-width: 0; padding: 12px; border: 1px solid #eddbb6; border-radius: 16px; background: #fffdf8; }
+#rete-tag .rs-need-item textarea { min-height: 86px; resize: vertical; background: #fff; }
+#rete-tag .rs-need-item-tools { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
+#rete-tag .rs-need-item-tools button { min-height: 40px; padding: 6px 8px; font-size: 12px; }
+#rete-tag .rs-need-remove { color: #767681; }
+#rete-tag .rs-needs-add { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; margin-top: 8px; color: #805a20; }
+#rete-tag .rs-needs-resolved { margin-top: 8px; font-size: 13px; }
+#rete-tag .rs-needs-resolved > div { display: grid; gap: 12px; margin-top: 12px; }
+#rete-tag .rs-need-item.is-resolved { background: #f6f5f0; border-color: #deddd6; }
+#rete-tag .rs-needs-error:empty { display: none; }
+#rete-tag .rs-need-result + .rs-need-result { border-top: 1px solid #eddbb6; margin-top: 14px; padding-top: 14px; }
+#rete-tag .rs-need-result p { white-space: pre-wrap; }
+#rete-tag .rs-need-result .rs-contact-actions { margin-top: 10px; }
+#rete-tag .rs-card-need .rs-help-copy + .rs-help-copy { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eddbb6; }
+#rete-tag .rs-card-need .rs-help-copy { white-space: pre-wrap; }
+#rete-tag .rs-shared-needs { display: grid; gap: 12px; }
+#rete-tag .rs-shared-needs > p { margin: 0; white-space: pre-wrap; }
+#rete-tag .rs-shared-needs > p + p { border-top: 1px solid #eddbb6; padding-top: 12px; }

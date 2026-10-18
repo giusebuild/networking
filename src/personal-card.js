@@ -1,3 +1,4 @@
+import { preserveLegacyNeeds } from './needs.js';
 import { PROFILE_FIELDS, UUID, cleanProfile, validateProfileFields } from './profile-card.js';
 import { live, keyFor, norm } from './model.js';
 import { responseCandidates } from './profile-requests.js';
@@ -6,21 +7,24 @@ const KEY = 'tramite:personal-card:v1';
 const invalid = () => { throw new Error('Scheda condivisa non valida. Chiedi di inviare di nuovo il link.'); };
 export function validatePersonalCard(card) {
   const keys = ['v', 'kind', 'id', 'revision', 'updatedAt', 'profile'];
-  if (!card || typeof card !== 'object' || Object.keys(card).length !== keys.length || !keys.every(k => Object.hasOwn(card, k)) || card.v !== 1 || card.kind !== 'card' || !UUID.test(card.id) || !UUID.test(card.revision) || typeof card.updatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(card.updatedAt) || !Number.isFinite(Date.parse(card.updatedAt))) invalid();
-  if (!card.profile || Object.keys(card.profile).length !== Object.keys(PROFILE_FIELDS).length || !Object.keys(PROFILE_FIELDS).every(k => Object.hasOwn(card.profile, k))) invalid();
+  if (!card || typeof card !== 'object' || Object.keys(card).length !== keys.length || !keys.every(k => Object.hasOwn(card, k)) || ![1, 2].includes(card.v) || card.kind !== 'card' || !UUID.test(card.id) || !UUID.test(card.revision) || typeof card.updatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(card.updatedAt) || !Number.isFinite(Date.parse(card.updatedAt))) invalid();
+  if (!card.profile || Object.keys(card.profile).length !== Object.keys(PROFILE_FIELDS).length + (card.v === 2 ? 1 : 0) || !Object.keys(PROFILE_FIELDS).every(k => Object.hasOwn(card.profile, k))) invalid();
+  if ((card.v === 2) !== Object.hasOwn(card.profile, 'needs')) invalid();
   validateProfileFields(card.profile); return card;
 }
 export function makePersonalCard(fields, previous = null, { id = previous?.id || crypto.randomUUID(), now = new Date().toISOString() } = {}) {
   const profile = cleanProfile(fields);
   if (previous) validatePersonalCard(previous);
   if (previous?.id === id && JSON.stringify(profile) === JSON.stringify(cleanProfile(previous.profile))) return structuredClone(previous);
-  return validatePersonalCard({ v: 1, kind: 'card', id, revision: crypto.randomUUID(), updatedAt: now, profile });
+  return validatePersonalCard({ v: Object.hasOwn(profile, 'needs') ? 2 : 1, kind: 'card', id, revision: crypto.randomUUID(), updatedAt: now, profile });
 }
 export function personalCardLink(card, baseURL) {
   validatePersonalCard(card);
-  const packed = [1, card.id, card.revision, card.updatedAt, ...Object.keys(PROFILE_FIELDS).map(k => card.profile[k])];
-  const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(packed)))).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-  const url = new URL('./profilo.html', baseURL); url.search = ''; url.hash = 'card=' + encoded; return url.href;
+  const packed = [card.v, card.id, card.revision, card.updatedAt, ...Object.keys(PROFILE_FIELDS).map(k => card.profile[k]), ...(card.v === 2 ? [card.profile.needs] : [])];
+  const bytes = new TextEncoder().encode(JSON.stringify(packed));
+  if (bytes.length > 19500) throw new Error('Scheda troppo lunga per il link. Riduci i testi prima di condividere.');
+  const encoded = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  const url = new URL('./profilo.html', baseURL); url.search = ''; url.hash = 'card=' + encoded; if (url.href.length > 28000) throw new Error('Scheda troppo lunga per il link. Riduci i testi prima di condividere.'); return url.href;
 }
 export function readPersonalCardLink(link) {
   if (typeof link !== 'string' || link.length > 28000) invalid();
@@ -28,8 +32,8 @@ export function readPersonalCardLink(link) {
   const match = hash.match(/^#card=([A-Za-z0-9_-]{1,26000})$/); if (!match) invalid();
   let p;
   try { p = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(match[1].replaceAll('-', '+').replaceAll('_', '/')), c => c.charCodeAt(0)))); } catch { invalid(); }
-  if (!Array.isArray(p) || p.length !== 11 || p[0] !== 1) invalid();
-  return validatePersonalCard({ v: 1, kind: 'card', id: p[1], revision: p[2], updatedAt: p[3], profile: Object.fromEntries(Object.keys(PROFILE_FIELDS).map((k, i) => [k, p[i + 4]])) });
+  if (!Array.isArray(p) || ![1, 2].includes(p[0]) || p.length !== (p[0] === 2 ? 12 : 11)) invalid();
+  return validatePersonalCard({ v: p[0], kind: 'card', id: p[1], revision: p[2], updatedAt: p[3], profile: Object.fromEntries(Object.keys(PROFILE_FIELDS).map((k, i) => [k, p[i + 4]]).concat(p[0] === 2 ? [['needs', p[11]]] : [])) });
 }
 export function loadPersonalCard(storage = globalThis.localStorage) {
   const raw = storage?.getItem(KEY); return raw ? validatePersonalCard(JSON.parse(raw)) : null;
@@ -69,7 +73,9 @@ export function applyPersonalCard(data, card, userId, targetId = '', now = new D
   const key = keyFor(p.id, userId);
   data.relationships[key] ||= { id: key, personId: p.id, authorId: userId, context: '', since: '', level: '', last: '', note: '' };
   const c = data.contributions[key] ||= { id: key, personId: p.id, authorId: userId, help: '', skills: [], markets: [], interests: [], collaboration: 'Da chiedere' };
-  c.reply = { ...fields, cardId: card.id, responseId: card.revision, updatedAt: now };
+  const retained = preserveLegacyNeeds(c.reply, fields);
+  if (Object.hasOwn(retained, 'needs')) data.schemaVersion = 2;
+  c.reply = { ...retained, cardId: card.id, responseId: card.revision, updatedAt: now };
   for (const k of ['role', 'phone', 'email', 'linkedin']) if (!p[k] && fields[k]) p[k] = fields[k];
   return p.id;
 }

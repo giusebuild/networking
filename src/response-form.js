@@ -1,3 +1,4 @@
+import { NeedsEditor } from './needs-editor.js';
 import { mountOfferGuidance, refreshOfferGuidance } from './offer-guidance.js';
 import { decodeFormLink, encodeFormLink } from './profile-requests.js';
 import { normalizePhone, normalizeEmail, mailtoURL, whatsappURL } from './contacts.js';
@@ -8,11 +9,13 @@ import { PROFILE_FIELDS } from './profile-card.js';
 
 const root = document.getElementById('rete-tag');
 const q = s => root.querySelector(s);
+const needsEditor = new NeedsEditor(q('#response-needs-editor'));
 let invitation, responseId, personal = null, identityCard = null;
 try { personal = loadPersonalCard(); } catch {}
 function usePersonal() {
   if (!personal) return; identityCard = personal;
-  for (const k of Object.keys(PROFILE_FIELDS)) q('#response-form').elements[k].value = personal.profile[k];
+  for (const k of Object.keys(PROFILE_FIELDS).filter(k => k !== 'need')) q('#response-form').elements[k].value = personal.profile[k];
+  needsEditor.setProfile(personal.profile);
   q('#response-prefill-hint').hidden = false; q('#response-prefill-hint').textContent = 'La tua scheda è già pronta. Rivedi e invia.'; q('#response-use-personal').hidden = true;
   q('#response-remember').checked = true; refreshOfferGuidance(root);
 }
@@ -21,7 +24,8 @@ try {
   q('#response-for').textContent = `Su invito di ${invitation.facilitator}`;
   q('#response-sharing').textContent = `La risposta sarà condivisa con ${invitation.facilitator} e il suo team. Compila solo ciò che vuoi condividere.`;
   if (invitation.prefill && Object.values(invitation.prefill).some(Boolean)) {
-    for (const key of Object.keys(PROFILE_FIELDS)) q('#response-form').elements[key].value = invitation.prefill[key];
+    for (const key of Object.keys(PROFILE_FIELDS).filter(k => k !== 'need')) q('#response-form').elements[key].value = invitation.prefill[key];
+    needsEditor.setProfile(invitation.prefill);
     q('#response-prefill-hint').hidden = false;
     q('#response-prefill-hint').textContent = `${invitation.facilitator} ha preparato una bozza. Conferma ciò che va bene, correggi o aggiungi.`;
   }
@@ -42,13 +46,13 @@ q('#response-form').addEventListener('submit', async event => {
   try {
     if (!invitation) return;
     const f = event.currentTarget.elements;
-    const fields = Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, f[k].value]));
+    const fields = { ...Object.fromEntries(Object.keys(PROFILE_FIELDS).map(k => [k, k === 'need' ? '' : f[k].value])), needs: needsEditor.profile() };
     const reusable = makePersonalCard(fields, identityCard); identityCard = reusable;
     let memoryNote = '';
     if (q('#response-remember').checked) { try { rememberPersonalCard(reusable); personal = reusable; } catch { memoryNote = ' Questo browser non la ricorda: conserva il link della tua scheda.'; } }
     q('#response-personal').href = personalCardLink(reusable, window.location.href); q('#response-personal').hidden = false;
-    const response = { v: invitation.v, kind: 'response', personId: invitation.personId, authorId: invitation.authorId, requestId: invitation.requestId,
-      ...(invitation.v === 2 ? { responseId } : {}), cardId: reusable.id, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: f.need.value.trim(),
+    const response = { v: 3, kind: 'response', personId: invitation.personId, authorId: invitation.authorId, requestId: invitation.requestId,
+      responseId, cardId: reusable.id, name: f.name.value.trim(), role: f.role.value.trim(), help: f.help.value.trim(), need: '', needs: fields.needs,
       phone: normalizePhone(f.phone.value), email: normalizeEmail(f.email.value), linkedin: normalizeLinkedIn(f.linkedin.value) };
     const link = encodeFormLink(response, window.location.href);
     q('#response-link').value = link;
