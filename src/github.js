@@ -31,7 +31,7 @@ export class GitHub {
     }
     if (!response.ok) {
       const messages = {
-        401: 'Accesso scaduto. Esporta le modifiche e accedi con un nuovo token.',
+        401: 'Token scaduto o revocato. Aggiornalo dalle impostazioni: le modifiche locali restano disponibili.',
         403: 'GitHub ha rifiutato l’accesso: controlla permessi, scadenza del token o limite di richieste.',
         404: 'Archivio non accessibile. Verifica invito e permessi su networking-data.',
         409: 'L’archivio è cambiato: riconcilio le modifiche.',

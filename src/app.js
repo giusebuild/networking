@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { clone, norm, live, keyFor, ensureMember, viewPerson, findPeople, validateNetwork, exportCSV, removeFromNetwork, makeNeed } from './model.js';
 import { GitHub } from './github.js';
 import { NetworkSync } from './sync.js';
-import { listVaults, makeVault, saveVault, openVault, forgetVault } from './vault.js';
+import { listVaults, makeDeviceVault, saveVault, openVault, openDeviceVault, forgetVault, activeAccount, clearActiveAccount } from './vault.js';
 import { icon, hydrateIcons } from './icons.js';
 import { demoNetwork } from './demo.js';
 import { normalizeLinkedIn, draftFromText, suggestedTags, quickPersonFromText } from './profile.js';
@@ -77,7 +77,7 @@ function changed() {
   else if (sync.pending) notice('Ci sono modifiche da confrontare.');
   else if (vaultError) notice(vaultError);
   else notice('');
-  q('#rs-remember').hidden = demo || !!vault;
+  q('#rs-remember').hidden = demo || vault?.mode === 'device';
 }
 async function synchronize() {
   if (!sync || demo) return;
@@ -107,10 +107,41 @@ function enter(state, identity, client, localVault, isDemo = false) {
 }
 function loginScreen() {
   const accounts = listVaults();
+  q('#rs-auth').hidden = false;
   q('#unlock-form').hidden = !accounts.length; q('#login-form').hidden = !!accounts.length;
   q('#unlock-form').elements.account.innerHTML = accounts.map(a => `<option value="${esc(a.id)}">@${esc(a.login)}</option>`).join('');
+  updateUnlockForm();
   q('#auth-error').textContent = ''; hydrateIcons(root);
   if (!accounts.length && !joinGuideShown && window.location?.hash === '#join') { joinGuideShown = true; openAccessGuide('guest'); }
+}
+function updateUnlockForm() {
+  const f = q('#unlock-form').elements, device = listVaults().find(a => a.id === f.account.value)?.mode === 'device';
+  q('#legacy-password').hidden = device; q('#legacy-migration').hidden = device; f.password.required = !device;
+}
+function validateSavedAccess(value, id) {
+  validateNetwork(value.base); validateNetwork(value.local);
+  if (value.user?.id !== id || typeof value.token !== 'string' || !value.token.trim()) throw new Error('Identità della copia locale non corrispondente.');
+}
+async function restoreRememberedAccess() {
+  const id = activeAccount();
+  if (!id) { loginScreen(); return; }
+  try {
+    const saved = await openDeviceVault(id); validateSavedAccess(saved.value, id);
+    await acquireLock(id); verified = false;
+    enter(saved.value, saved.value.user, new GitHub(saved.value.token), saved.vault);
+  } catch (error) { releaseLock?.(); releaseLock = null; loginScreen(); q('#auth-error').textContent = error.message; }
+}
+async function rememberDevice() {
+  if (!user || demo) return;
+  const previous = vault, identity = user;
+  try {
+    const saved = await makeDeviceVault(identity.id);
+    if (user?.id !== identity.id) return;
+    vault = saved; persist(); await vaultQueue;
+    if (vaultError) throw new Error(vaultError);
+    q('[data-action="forget"]').hidden = false; changed();
+    notice('Accesso ricordato. La prossima volta entri direttamente.');
+  } catch (error) { vault = previous; notice(error.message); }
 }
 function openAccessGuide(role = 'guest') {
   for (const b of root.querySelectorAll('[data-access-role]')) b.setAttribute('aria-pressed', String(b.dataset.accessRole === role));
@@ -275,7 +306,7 @@ function resetUI() {
   for (const key of ['skills', 'markets', 'interests', 'knower']) q('#rs-filter-' + key).innerHTML = '<option value="">Tutti</option>';
   for (const editor of [offerTags, requestTags, quickOfferTags, quickRequestTags]) editor.set();
   contactChoices = []; introPhone = ''; q('#contacts-list').replaceChildren(); q('#intro-whatsapp').removeAttribute('href'); q('#intro-whatsapp').hidden = true;
-  for (const selector of ['#rs-form', '#draft-form', '#token-form', '#remember-form', '#quick-form']) q(selector).reset();
+  for (const selector of ['#rs-form', '#draft-form', '#token-form', '#quick-form']) q(selector).reset();
   q('#rs-count').textContent = '0'; q('#rs-form').hidden = true;
   q('#rs-header').hidden = true; q('#rs-app').hidden = true; q('#rs-auth').hidden = false;
   q('#rs-add').hidden = false; q('#rs-notice').textContent = ''; q('#rs-status').textContent = '';
@@ -286,16 +317,23 @@ async function leave(forget = false) {
   clearTimeout(autoTimer);
   if (sync?.running) await sync.running;
   await vaultQueue;
-  if (forget && user) forgetVault(user.id);
+  let cleanupError;
+  try {
+    if (user && (forget || vault?.mode === 'device')) await forgetVault(user.id);
+    clearActiveAccount();
+  } catch (error) { cleanupError = error; }
   releaseLock?.(); releaseLock = null;
   user = null; api = null; sync = null; vault = null; verified = false; demo = false; vaultError = '';
   resetUI(); loginScreen();
+  if (cleanupError) q('#auth-error').textContent = 'Sei uscito. Il browser non ha consentito di rimuovere tutti i dati locali: cancellali dalle impostazioni del sito.';
 }
-function requestLeave(forget = false) {
+async function requestLeave(forget = false) {
   const action = () => leave(forget);
-  if ((sync?.dirty || sync?.pending) && !demo) confirm(forget ? 'Dimenticare il dispositivo?' : 'Uscire dalla rete?', 'Ci sono modifiche non sincronizzate. Esporta un backup o sincronizza prima di uscire. Confermando, restano recuperabili solo se hai una copia locale protetta e non la elimini.', action);
+  if ((sync?.dirty || sync?.pending) && !demo) confirm(forget ? 'Dimenticare il dispositivo?' : 'Uscire dalla rete?', forget || vault?.mode === 'device'
+    ? 'Ci sono modifiche non sincronizzate. Sincronizza o esporta un backup prima di uscire: confermando rimuovi anche la copia locale.'
+    : 'Ci sono modifiche non sincronizzate. Esporta un backup o sincronizza prima di uscire. Restano nella vecchia copia protetta dalla password locale, se l’hai salvata.', action);
   else if (forget) confirm('Dimenticare il dispositivo?', 'Rimuove token e copia locale da questo browser. I dati sincronizzati restano nel repository.', action);
-  else action();
+  else await action();
 }
 const request = p => p.seeking.find(c => c.authorId === user.id) || p.seeking[0];
 const tagLine = values => uniqueTags(values).map(t => `<span class="rs-tag">${esc(t)}</span>`).join('');
@@ -515,9 +553,6 @@ function showConflicts() {
   for (const d of root.querySelectorAll('dialog[open]')) if (d.id !== 'conflict-dialog') d.close();
   showDialog('#conflict-dialog');
 }
-q('#login-form').elements.remember.addEventListener('change', e => {
-  q('#remember-password').hidden = !e.target.checked; q('#login-form').elements.password.required = e.target.checked;
-});
 q('#login-form').addEventListener('submit', async e => {
   e.preventDefault(); const form = e.currentTarget, f = form.elements; const button = form.querySelector('[type="submit"]');
   button.disabled = true; q('#auth-error').textContent = '';
@@ -525,9 +560,13 @@ q('#login-form').addEventListener('submit', async e => {
     const client = new GitHub(f.token.value.trim()), identity = await client.authorize();
     if (listVaults().some(a => a.id === identity.id)) throw new Error('Hai già una copia locale per questo account. Sbloccala per conservare le modifiche. Puoi aggiornare il token dalle impostazioni.');
     const remote = await client.read(); await acquireLock(identity.id);
-    const localVault = f.remember.checked ? await makeVault(f.password.value) : null;
+    let localVault = null, warning = '';
+    if (f.remember.checked) {
+      try { localVault = await makeDeviceVault(identity.id); }
+      catch { warning = 'Sei entrato, ma il browser non consente di ricordare l’accesso su questo dispositivo.'; }
+    }
     verified = true; enter({ base: remote.data, local: remote.data, sha: remote.sha }, identity, client, localVault);
-    form.reset(); q('#remember-password').hidden = true; f.password.required = false;
+    form.reset(); if (warning) notice(warning);
   } catch (error) { releaseLock?.(); releaseLock = null; q('#auth-error').textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -535,13 +574,16 @@ q('#unlock-form').addEventListener('submit', async e => {
   e.preventDefault(); const form = e.currentTarget, f = form.elements, button = form.querySelector('[type="submit"]');
   button.disabled = true; q('#auth-error').textContent = '';
   try {
-    const { value, vault: localVault } = await openVault(f.account.value, f.password.value);
-    validateNetwork(value.base); validateNetwork(value.local);
-    if (value.user.id !== f.account.value) throw new Error('Identità della cache non corrispondente.');
+    const device = listVaults().find(a => a.id === f.account.value)?.mode === 'device';
+    const saved = device ? await openDeviceVault(f.account.value) : await openVault(f.account.value, f.password.value);
+    const { value } = saved; let localVault = saved.vault;
+    validateSavedAccess(value, f.account.value);
     await acquireLock(value.user.id);
-    const client = new GitHub(value.token); verified = false;
-    let warning = '';
-    try { await client.authorize(value.user.id); verified = true; } catch (error) { warning = error.message; }
+    const client = new GitHub(value.token); verified = false; let warning = '';
+    if (!device) {
+      try { localVault = await makeDeviceVault(value.user.id); }
+      catch { warning = 'Copia sbloccata. Non è stato possibile attivare l’accesso automatico: riprova con Resta connesso.'; }
+    }
     enter(value, value.user, client, localVault); form.reset(); if (warning) notice(warning);
   } catch (error) { releaseLock?.(); releaseLock = null; q('#auth-error').textContent = error.message; }
   finally { button.disabled = false; }
@@ -565,17 +607,6 @@ q('#draft-form').addEventListener('submit', e => {
     (f.personName.value ? f.personHelp : f.personName).focus();
   } catch (error) { q('#draft-error').textContent = error.message; }
 });
-q('#remember-form').addEventListener('submit', async e => {
-  e.preventDefault(); const form = e.currentTarget, button = form.querySelector('[type="submit"]'), id = user.id; button.disabled = true;
-  try {
-    const protectedVault = await makeVault(form.elements.password.value);
-    if (!user || user.id !== id) return;
-    vault = protectedVault; persist(); await vaultQueue;
-    if (vaultError) { vault = null; throw new Error(vaultError); }
-    form.reset(); q('#remember-dialog').close(); q('[data-action="forget"]').hidden = false; changed();
-  } catch (error) { q('#remember-error').textContent = error.message; }
-  finally { button.disabled = false; }
-});
 q('#token-form').addEventListener('submit', async e => {
   e.preventDefault(); const form = e.currentTarget, b = form.querySelector('[type="submit"]'); b.disabled = true;
   try {
@@ -591,6 +622,7 @@ q('#conflict-form').addEventListener('submit', e => {
 q('#conflict-dialog').addEventListener('cancel', e => { e.preventDefault(); });
 q('#rs-form').addEventListener('submit', saveForm);
 q('#quick-form').addEventListener('submit', saveQuickPerson);
+q('#unlock-form').elements.account.addEventListener('change', updateUnlockForm);
 q('#quick-text').addEventListener('input', updateQuickDraft);
 for (const [id, key] of [['quick-help', 'help'], ['quick-need', 'need']]) q('#' + id).addEventListener('input', () => { if (key === 'help') quickHelpEdited = true; else quickNeedEdited = true; renderQuickPreview(); });
 q('#quick-name').addEventListener('input', () => { quickNameEdited = true; quickHomonym = false; q('#quick-homonym').hidden = true; renderQuickPreview(); });
@@ -665,7 +697,11 @@ root.addEventListener('click', async e => {
       offerTags.set(draftUndo.tags, allTagPools()); requestTags.set(draftUndo.needTags, allTagPools()); offerTags.blocked = new Set(draftUndo.blocked); requestTags.blocked = new Set(draftUndo.needBlocked);
       draftUndo = null; importedSuggestions = {}; q('#rs-draft-applied').hidden = true; refreshSuggestions(); updateProfileLinks();
     }
-    if (a === 'remember' && !demo && !vault) { q('#remember-form').reset(); q('#remember-error').textContent = ''; q('#settings-dialog').close(); showDialog('#remember-dialog'); }
+    if (a === 'remember') await rememberDevice();
+    if (a === 'forget-saved') {
+      const id = q('#unlock-form').elements.account.value;
+      if (id) confirm('Rimuovere l’accesso salvato?', 'Rimuove da questo browser accesso e copia locale, comprese eventuali modifiche non sincronizzate. I dati su GitHub restano disponibili.', async () => { await forgetVault(id); loginScreen(); }, 'Rimuovi');
+    }
     if (a === 'settings') showDialog('#settings-dialog');
     if (a === 'team') openTeam();
     if (a === 'copy-team-link') await copyTeamLink();
@@ -682,8 +718,8 @@ root.addEventListener('click', async e => {
     if (a === 'confirm-import') { const incoming = clone(pendingImport); pendingImport = null; q('#import-dialog').close(); sync.import(incoming); scheduleSync(); }
     if (a === 'export-conflict') download(JSON.stringify({ format: 'networking-conflict-backup', source: sync.pending.source, ...sync.snapshot(), incoming: sync.pending.remote, conflicts: sync.pending.conflicts }, null, 2), 'networking-conflitto.json');
     if (a === 'change-token') { q('#settings-dialog').close(); showDialog('#token-dialog'); }
-    if (a === 'logout') requestLeave();
-    if (a === 'forget') requestLeave(true);
+    if (a === 'logout') await requestLeave();
+    if (a === 'forget') await requestLeave(true);
     if (a === 'confirm-no') { confirmAction = null; q('#confirm-dialog').close(); }
     if (a === 'confirm-yes') { const action = confirmAction; confirmAction = null; q('#confirm-dialog').close(); await action?.(); }
     if (a === 'remove-person') {
@@ -704,5 +740,5 @@ window.addEventListener('offline', () => { if (sync && !demo) notice('Sei offlin
 window.addEventListener('beforeunload', e => { if ((sync?.dirty || sync?.pending) && !demo) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && sync && !mode) synchronize(); });
 setInterval(() => { if (sync && !mode && document.visibilityState === 'visible') synchronize(); }, 45000);
-loginScreen();
+await restoreRememberedAccess();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch(() => {});

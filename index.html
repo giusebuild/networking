@@ -1,19 +1,18 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#635bff"><meta name="description" content="Una rete condivisa di persone, competenze e possibilità."><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"><meta name="application-name" content="Tramite"><meta name="apple-mobile-web-app-title" content="Tramite"><meta name="apple-mobile-web-app-capable" content="yes"><title>Tramite — La tua rete professionale</title><link rel="icon" type="image/svg+xml" href="./icon.svg"><link rel="apple-touch-icon" sizes="180x180" href="./icons/tramite-180.png"><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css"><script type="module" src="./src/app.js"></script></head><body><div id="rete-tag" data-view="network" data-open="false">
-<section class="rs-auth" id="rs-auth" aria-labelledby="auth-title">
+<section class="rs-auth" id="rs-auth" aria-labelledby="auth-title" hidden>
   <span class="rs-mark"><img src="./icon.svg" alt="" aria-hidden="true" width="44" height="44"></span>
   <h1 id="auth-title">La tua rete.<br>Più possibilità.</h1><p>Ricorda chi conosci. Trova chi coinvolgere.</p>
   <form id="login-form">
     <label class="rs-label">Token personale GitHub<input class="rs-field" name="token" type="password" autocomplete="off" required spellcheck="false" placeholder="Incolla il token"></label>
-    <label class="rs-check"><input type="checkbox" name="remember">Ricorda su questo dispositivo</label>
-    <label class="rs-label" id="remember-password" hidden>Password locale<input class="rs-field" name="password" type="password" autocomplete="new-password" minlength="10" placeholder="Almeno 10 caratteri"></label>
+    <label class="rs-check"><input type="checkbox" name="remember" checked>Resta connesso su questo dispositivo</label>
     <button class="rs-btn rs-primary" type="submit">Accedi</button>
   </form>
   <form id="unlock-form" hidden>
     <label class="rs-label">Account<select name="account" class="rs-field"></select></label>
-    <label class="rs-label">Password locale<input class="rs-field" name="password" type="password" autocomplete="current-password" required></label>
+    <label class="rs-label" id="legacy-password">Password locale<input class="rs-field" name="password" type="password" autocomplete="current-password" required></label><p id="legacy-migration" class="rs-field-hint">Sblocca una volta la vecchia copia. Poi entrerai direttamente.</p>
     <button class="rs-btn rs-primary" type="submit">Apri la rete</button>
-    <button class="rs-text-btn" type="button" data-action="other-account">Accedi con un token</button>
+    <button class="rs-text-btn" type="button" data-action="other-account">Accedi con un token</button><button class="rs-text-btn" type="button" data-action="forget-saved">Rimuovi accesso salvato</button>
   </form>
   <p class="rs-notice" id="auth-error" role="alert"></p>
   <div class="rs-auth-links"><button class="rs-text-btn" type="button" data-action="access-guide">Primo accesso?</button><button class="rs-text-btn" type="button" data-action="demo">Prova la demo</button></div>
@@ -56,7 +55,7 @@
       </div></details></section>
       <div class="rs-form-actions"><span id="rs-form-source">Visibile al gruppo.</span><button type="button" class="rs-btn" data-action="cancel">Annulla</button><button type="submit" class="rs-btn rs-primary" id="rs-save">Salva persona<i data-lucide="check" class="rs-icon" aria-hidden="true"></i></button></div>
     </form>
-    <footer class="rs-footer"><button type="button" class="rs-text-btn" data-action="sync" id="rs-sync"><span class="rs-status-dot"></span><span id="rs-sync-label">Sincronizza</span></button><div class="rs-footer-account"><button type="button" class="rs-text-btn" data-action="remember" id="rs-remember">Ricorda accesso</button><span id="rs-account"></span></div></footer><span class="rs-sr" id="rs-status" role="status"></span>
+    <footer class="rs-footer"><button type="button" class="rs-text-btn" data-action="sync" id="rs-sync"><span class="rs-status-dot"></span><span id="rs-sync-label">Sincronizza</span></button><div class="rs-footer-account"><button type="button" class="rs-text-btn" data-action="remember" id="rs-remember">Resta connesso</button><span id="rs-account"></span></div></footer><span class="rs-sr" id="rs-status" role="status"></span>
   </main>
 
 <dialog id="settings-dialog" aria-labelledby="settings-title">
@@ -95,7 +94,7 @@
   <section id="access-owner" hidden>
     <ol class="rs-access-steps"><li><a href="https://github.com/settings/personal-access-tokens/new?name=Tramite&amp;target_name=giusebuild&amp;contents=write" target="_blank" rel="noopener noreferrer">Crea il token fine-grained ↗</a><small>Resource owner: <strong>giusebuild</strong>.</small></li><li>Seleziona solo networking-data.<small>Repository access → Only select repositories.</small></li><li>Consenti lettura e scrittura.<small>Contents → Read and write. Scegli una scadenza, genera il token e copialo.</small></li></ol>
   </section>
-  <p class="rs-team-note">Tutto il team vede le schede e le note. Puoi ricordare l’accesso su questo dispositivo proteggendolo con una password locale.</p>
+  <p class="rs-team-note">Tutto il team vede le schede e le note. Con Resta connesso riapri la rete direttamente su questo dispositivo.</p>
   <div class="rs-button-row"><button type="button" class="rs-btn rs-primary" data-action="access-ready">Ho il token</button></div>
 </dialog>
 <dialog id="quick-dialog" class="rs-sheet" aria-labelledby="quick-title">
@@ -128,6 +127,6 @@
 <dialog id="confirm-dialog" aria-labelledby="confirm-title"><h2 id="confirm-title"></h2><p id="confirm-copy" class="rs-dialog-copy"></p><div class="rs-button-row"><button class="rs-btn" data-action="confirm-no">Annulla</button><button class="rs-btn rs-primary" data-action="confirm-yes">Conferma</button></div></dialog>
 <dialog id="token-dialog" aria-labelledby="token-title"><h2 id="token-title">Aggiorna token</h2><p class="rs-dialog-copy">Usa un token dello stesso account. Le modifiche in attesa restano qui.</p><form id="token-form"><label class="rs-label">Nuovo token<input class="rs-field" name="token" type="password" autocomplete="off" required></label><p class="rs-notice" id="token-error" role="alert"></p><div class="rs-button-row"><button type="button" class="rs-btn" data-action="close-dialog">Annulla</button><button class="rs-btn rs-primary" type="submit">Aggiorna</button></div></form></dialog>
 <dialog id="draft-dialog" aria-labelledby="draft-title"><div class="rs-form-heading"><div><span class="rs-eyebrow">Un punto di partenza</span><h2 id="draft-title">Incolla una presentazione</h2></div><button type="button" class="rs-icon-btn" data-action="close-dialog" aria-label="Chiudi bozza"><i data-lucide="x" class="rs-icon" aria-hidden="true"></i></button></div><form id="draft-form"><label class="rs-label">Profilo LinkedIn <span class="rs-optional-label">Facoltativo</span><input name="linkedin" class="rs-field" type="text" placeholder="linkedin.com/in/…" maxlength="300"></label><a id="draft-linkedin-preview" class="rs-profile-preview" target="_blank" rel="noopener noreferrer" hidden>Apri profilo LinkedIn ↗</a><label class="rs-label">Titolo <span class="rs-optional-label">Facoltativo</span><input name="headline" class="rs-field" maxlength="160" placeholder="Se copi solo il titolo, incollalo qui"></label><label class="rs-label">Presentazione o profilo copiato<textarea name="text" class="rs-field rs-paste-text" placeholder="Incolla qui il testo di una presentazione, le informazioni di un profilo o i tuoi appunti sulla persona." maxlength="15000"></textarea></label><p class="rs-field-hint">Dal solo link non si importano testi. Copia titolo e Informazioni da LinkedIn, poi rivedi la bozza.</p><p class="rs-notice" id="draft-error" role="alert"></p><div class="rs-button-row"><button type="button" class="rs-btn" data-action="close-dialog">Annulla</button><button type="submit" class="rs-btn rs-primary">Prepara la bozza</button></div></form></dialog>
-<dialog id="remember-dialog" aria-labelledby="remember-title"><h2 id="remember-title">Riapri con una password</h2><p class="rs-dialog-copy">Protegge l’accesso e la copia locale su questo dispositivo. I dati continuano a salvarsi su GitHub.</p><form id="remember-form"><label class="rs-label">Scegli una password locale<input class="rs-field" name="password" type="password" autocomplete="new-password" minlength="10" required placeholder="Almeno 10 caratteri"></label><p class="rs-notice" id="remember-error" role="alert"></p><div class="rs-button-row"><button type="button" class="rs-btn" data-action="close-dialog">Annulla</button><button type="submit" class="rs-btn rs-primary">Ricorda accesso</button></div></form></dialog>
+
 <input type="file" id="import-file" accept="application/json,.json" hidden>
 <noscript>Attiva JavaScript per aprire Tramite. I dati sono conservati nel repository privato.</noscript></div></body></html>
